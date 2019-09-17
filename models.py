@@ -16,6 +16,8 @@ def create_modules(module_defs, img_size, arc):
     yolo_index = -1
 
     for i, mdef in enumerate(module_defs):
+        print(mdef)
+        print(output_filters)
         modules = nn.Sequential()
 
         if mdef['type'] == 'convolutional':
@@ -51,6 +53,7 @@ def create_modules(module_defs, img_size, arc):
 
         elif mdef['type'] == 'route':  # nn.Sequential() placeholder for 'route' layer
             layers = [int(x) for x in mdef['layers'].split(',')]
+            print('route',layers)
             filters = sum([output_filters[i + 1 if i > 0 else i] for i in layers])
             routs.extend([l if l > 0 else l + i for l in layers])
             # if mdef[i+1]['type'] == 'reorg3d':
