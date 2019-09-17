@@ -1,6 +1,6 @@
 import threading
 from frame_loader import Frame_reader
-from argos_detection import *
+from TKD_detection import *
 
 class F_loader(threading.Thread):
    def __init__(self, info):
@@ -16,9 +16,6 @@ class F_loader(threading.Thread):
 class student():
     def __init__(self,threadID,source,opt,device):
         self.frame=None
-        self.collecting=True
-        self.ready=False
-        self.results=None
         self.model=None
         self.threadID = threadID
         self.source = source
@@ -29,12 +26,11 @@ class student():
 
 class student_detection(threading.Thread):
 
-    def __init__(self, model, students, threadID):
+    def __init__(self, model, students):
         threading.Thread.__init__(self)
-        self.threadID = threadID
         self.model = model
         self.students=students
     def run(self):
-        print("Starting student " + str(self.threadID))
+        print("Starting student " + str(self.students.threadID))
         Fast_detection(self.model, self.students)
-        print("Exiting student" + str(self.threadID))
+        print("Exiting student" + str(self.students.threadID))

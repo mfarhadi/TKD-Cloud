@@ -64,7 +64,7 @@ def Argos(opt):
    if half:
        o_model.half()
 
-   threadList = ["0","VIRAT_S_000003.mp4"]
+   threadList = ["0"]
 
    threads = []
    threadID = 1
@@ -72,17 +72,12 @@ def Argos(opt):
    # Create new threads
    for tName in threadList:
       student_temp=student(threadID,tName,opt,device)
-      students.append(student_temp)
-      thread = F_loader(student_temp)
+      thread = student_detection(s_model,student_temp)
       thread.start()
       threads.append(thread)
       threadID += 1
 
-   ################ Start Student ####################################
-   threadID += 1
-   S_detection=student_detection(s_model,students, threadID)
-   S_detection.start()
-   threads.append(S_detection)
+
 
    # Notify threads it's time to exit
    input()
@@ -101,7 +96,7 @@ if __name__ == '__main__':
     parser.add_argument('--o-cfg', type=str, default='cfg/yolov3-spp.cfg', help='cfg file path')
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.pt', help='path to weights file')
-    parser.add_argument('--o-weights', type=str, default='weights/yolov3-spp.weights', help='path to weights file')
+    parser.add_argument('--o-weights', type=str, default='weights/yolov3_spp.pt', help='path to weights file')
     parser.add_argument('--source', type=str, default='data/samples', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
