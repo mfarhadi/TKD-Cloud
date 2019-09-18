@@ -16,8 +16,7 @@ def create_modules(module_defs, img_size, arc):
     yolo_index = -1
 
     for i, mdef in enumerate(module_defs):
-        print(mdef)
-        print(output_filters)
+
         modules = nn.Sequential()
 
         if mdef['type'] == 'convolutional':
@@ -53,7 +52,7 @@ def create_modules(module_defs, img_size, arc):
 
         elif mdef['type'] == 'route':  # nn.Sequential() placeholder for 'route' layer
             layers = [int(x) for x in mdef['layers'].split(',')]
-            print('route',layers)
+
             filters = sum([output_filters[i + 1 if i > 0 else i] for i in layers])
             routs.extend([l if l > 0 else l + i for l in layers])
             # if mdef[i+1]['type'] == 'reorg3d':
@@ -104,6 +103,10 @@ def create_modules(module_defs, img_size, arc):
             except:
                 print('WARNING: smart bias initialization failure.')
 
+        elif mdef['type'] == 'list_input':
+            in_filters=[int(x) for x in mdef['filters'].split(',')]
+            output_filters[0]=in_filters[0]
+            filters=in_filters[1]
         else:
             print('Warning: Unrecognized Layer Type: ' + mdef['type'])
 
@@ -215,18 +218,22 @@ class Darknet(nn.Module):
         # Darknet Header https://github.com/AlexeyAB/darknet/issues/2914#issuecomment-496675346
         self.version = np.array([0, 2, 5], dtype=np.int32)  # (int32) version info: major, minor, revision
         self.seen = np.array([0], dtype=np.int64)  # (int64) number of images seen during training
+        self.feture_index=[]
 
-    def forward(self, x, var=None):
+    def forward(self, x,var=None):
         img_size = x.shape[-2:]
         layer_outputs = []
         output = []
-
+        feature_return=[]
         for i, (mdef, module) in enumerate(zip(self.module_defs, self.module_list)):
 
             mtype = mdef['type']
 
             if mtype in ['convolutional', 'upsample', 'maxpool']:
                 x = module(x)
+            elif mtype == 'list_input':
+                layers_outputs.append(x[0])
+                x=x[1]
             elif mtype == 'route':
                 layers = [int(x) for x in mdef['layers'].split(',')]
                 if len(layers) == 1:
@@ -249,6 +256,8 @@ class Darknet(nn.Module):
                 x = module(x, img_size)
                 output.append(x)
             layer_outputs.append(x if i in self.routs else [])
+            if i in self.feture_index:
+                feature_return.append(x)
 
         if self.training:
             return output
@@ -256,6 +265,9 @@ class Darknet(nn.Module):
             output = torch.cat(output, 1)  # cat 3 layers 85 x (507, 2028, 8112) to 85 x 10647
             nc = self.module_list[self.yolo_layers[0]].nc  # number of classes
             return output[5:5 + nc].t(), output[:4].t()  # ONNX scores, boxes
+        elif self.feture_index:
+            io, p = list(zip(*output))  # inference output, training output
+            return torch.cat(io, 1), p,feature_return
         else:
             io, p = list(zip(*output))  # inference output, training output
             return torch.cat(io, 1), p

@@ -37,7 +37,10 @@ def Fast_detection(model, info):
 
       info.frame[0,:,0:img.shape[1],:] = torch.from_numpy(img)
 
-      pred, _ = model(info.frame.cuda())
+      pred, p,feture = model(info.frame.cuda())
+      print(p[0].shape, feture[0].shape)
+      for i in feture:
+          print(i.shape)
 
       for i, det in enumerate(non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)):  # detections per image
           s,im0='',im0s

@@ -28,7 +28,7 @@ def Argos(opt):
 
    # Initialize model
    s_model = Darknet(opt.s_cfg, img_size)
-
+   s_model.feture_index=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,21,22]
    # Load weights
    if s_weights.endswith('.pt'):  # pytorch format
        s_model.load_state_dict(torch.load(s_weights, map_location=device)['model'])
