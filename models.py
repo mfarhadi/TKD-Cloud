@@ -219,9 +219,13 @@ class Darknet(nn.Module):
         self.version = np.array([0, 2, 5], dtype=np.int32)  # (int32) version info: major, minor, revision
         self.seen = np.array([0], dtype=np.int64)  # (int64) number of images seen during training
         self.feture_index=[]
+        self.img_size=None
 
     def forward(self, x,var=None):
-        img_size = x.shape[-2:]
+        if self.img_size:
+            img_size=self.img_size
+        else:
+            img_size = x.shape[-2:]
         layer_outputs = []
         output = []
         feature_return=[]
@@ -230,9 +234,12 @@ class Darknet(nn.Module):
             mtype = mdef['type']
 
             if mtype in ['convolutional', 'upsample', 'maxpool']:
+
                 x = module(x)
+
+
             elif mtype == 'list_input':
-                layers_outputs.append(x[0])
+                layer_outputs.append(x[0])
                 x=x[1]
             elif mtype == 'route':
                 layers = [int(x) for x in mdef['layers'].split(',')]
@@ -253,7 +260,9 @@ class Darknet(nn.Module):
             elif mtype == 'shortcut':
                 x = x + layer_outputs[int(mdef['from'])]
             elif mtype == 'yolo':
+
                 x = module(x, img_size)
+
                 output.append(x)
             layer_outputs.append(x if i in self.routs else [])
             if i in self.feture_index:

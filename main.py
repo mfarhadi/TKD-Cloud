@@ -5,6 +5,7 @@ import time
 import argparse
 import time
 from sys import platform
+import torch
 
 from models import *  # set ONNX_EXPORT in models.py
 from utils.datasets import *
@@ -28,7 +29,8 @@ def Argos(opt):
 
    # Initialize model
    s_model = Darknet(opt.s_cfg, img_size)
-   s_model.feture_index=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,21,22]
+
+   s_model.feture_index=[8,12]
    # Load weights
    if s_weights.endswith('.pt'):  # pytorch format
        s_model.load_state_dict(torch.load(s_weights, map_location=device)['model'])
@@ -43,6 +45,12 @@ def Argos(opt):
    half = half and device.type != 'cpu'  # half precision only supported on CUDA
    if half:
        s_model.half()
+
+   TKD_decoder = Darknet('cfg/TKD_decoder.cfg', img_size)
+
+
+   if s_weights.endswith('.pt'):  # pytorch format
+       TKD_decoder.load_state_dict(torch.load('TKD.pt', map_location=device)['model'])
 
    ################ Teacher ##########################
 
@@ -64,14 +72,15 @@ def Argos(opt):
    if half:
        o_model.half()
 
-   threadList = ["0"]
+   threadList = opt.source
 
    threads = []
    threadID = 1
    students=[]
+
    # Create new threads
    for tName in threadList:
-      student_temp=student(threadID,tName,opt,device)
+      student_temp=student(threadID,TKD_decoder,o_model,tName,opt,device)
       thread = student_detection(s_model,student_temp)
       thread.start()
       threads.append(thread)
@@ -97,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.pt', help='path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3_spp.pt', help='path to weights file')
-    parser.add_argument('--source', type=str, default='data/samples', help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
