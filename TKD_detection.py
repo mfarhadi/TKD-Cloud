@@ -45,6 +45,7 @@ def Fast_detection(model, info):
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
     oracle_T=Oracle(info.oracle)
+    info.oracle.train().cuda()
     for path, img, im0s, vid_cap in dataset:
 
       info.collecting=True
@@ -54,15 +55,37 @@ def Fast_detection(model, info):
       info.frame=info.frame.cuda()
       pred, p,feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
-      #pred,_=info.TKD(feature)
+      pred,_=info.TKD(feature)
+
+      info.oracle.eval()
+      pred, _ = info.oracle(info.frame)
+      info.oracle.train()
+      T_out = info.oracle(info.frame)
 
 
+      for j in range(5):
+          info.optimizer.zero_grad()
+          S_out, p = info.TKD(feature)
+          loss = 0
+
+          for i in range(2):
+              loss+=info.loss(T_out[i],p[i])
+          loss.backward(retain_graph=True)
+          info.optimizer.step()
+      print(loss)
+
+
+
+      info.TKD.eval()
+
+      '''
       if not oracle_T.is_alive():
           oracle_T = Oracle(info.oracle)
           oracle_T.frame=info.frame
           oracle_T.feature=feature
           oracle_T.info=info
           oracle_T.start()
+      '''
 
       #pred.append(pred_T)
 

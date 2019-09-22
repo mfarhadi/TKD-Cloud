@@ -26,7 +26,7 @@ class student():
         self.device=device
         self.exitFlag=False
         self.loss=nn.MSELoss().cuda()
-        self.optimizer = optim.Adam(TKD.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
 
 
 class student_detection(threading.Thread):
