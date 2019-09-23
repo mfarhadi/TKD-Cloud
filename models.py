@@ -264,6 +264,7 @@ class Darknet(nn.Module):
                 x = module(x, img_size)
 
                 output.append(x)
+
             layer_outputs.append(x if i in self.routs else [])
             if i in self.feture_index:
                 feature_return.append(x)
@@ -278,7 +279,9 @@ class Darknet(nn.Module):
             io, p = list(zip(*output))  # inference output, training output
             return torch.cat(io, 1), p,feature_return
         else:
+
             io, p = list(zip(*output))  # inference output, training output
+
             return torch.cat(io, 1), p
 
     def fuse(self):

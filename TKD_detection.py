@@ -5,20 +5,25 @@ from sys import platform
 from models import *  # set ONNX_EXPORT in models.py
 from utils.datasets import *
 from utils.utils import *
+from torch.autograd import Variable
+
+import torch.optim as optim
+from loss_preparation import TKD_loss
+
+
 
 import threading
 
 class Oracle(threading.Thread):
 
-    def __init__(self, model):
+    def __init__(self):
         threading.Thread.__init__(self)
-        self.oracle=model
         self.frame=None
         self.feature=None
         self.info=None
     def run(self):
 
-        Retraining(self.frame, self.feature, self.info,self.oracle)
+        Retraining(self.frame, self.feature, self.info)
 
 
 def Fast_detection(model, info):
@@ -44,50 +49,32 @@ def Fast_detection(model, info):
 
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
-    oracle_T=Oracle(info.oracle)
+    oracle_T=Oracle()
     info.oracle.train().cuda()
+
     for path, img, im0s, vid_cap in dataset:
 
       info.collecting=True
       # Get detections
 
-      info.frame[0,:,0:img.shape[1],:] = torch.from_numpy(img)
-      info.frame=info.frame.cuda()
-      pred, p,feature = model(info.frame)
+
+      info.frame[0, :, 0:img.shape[1], :] = torch.from_numpy(img)
+      info.frame = info.frame.cuda()
+      pred, _, feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
-      pred,_=info.TKD(feature)
-
-      info.oracle.eval()
-      pred, _ = info.oracle(info.frame)
-      info.oracle.train()
-      T_out = info.oracle(info.frame)
+      pred_TKD, _ = info.TKD(feature)
+      pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
 
-      for j in range(5):
-          info.optimizer.zero_grad()
-          S_out, p = info.TKD(feature)
-          loss = 0
-
-          for i in range(2):
-              loss+=info.loss(T_out[i],p[i])
-          loss.backward(retain_graph=True)
-          info.optimizer.step()
-      print(loss)
-
-
-
-      info.TKD.eval()
-
-      '''
       if not oracle_T.is_alive():
-          oracle_T = Oracle(info.oracle)
+          oracle_T = Oracle()
           oracle_T.frame=info.frame
-          oracle_T.feature=feature
+          oracle_T.feature=[Variable(feature[0].data, requires_grad=False),Variable(feature[1].data, requires_grad=False)]
           oracle_T.info=info
           oracle_T.start()
-      '''
 
-      #pred.append(pred_T)
+      #oracle_T.join()
+
 
       for i, det in enumerate(non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)):  # detections per image
           s,im0='',im0s
@@ -126,29 +113,30 @@ def Fast_detection(model, info):
 
 
 
-def Retraining(frame, feature, info, model):
+def Retraining(frame, feature,info):
 
-    model.train().cuda()
-    info.TKD.eval()
 
-    T_out = model(frame)
+    T_out = info.oracle(frame)
 
-    S_out,p = info.TKD(feature)
-    '''
+
+    richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
+
+
     for j in range(3):
-        loss = 0
-        info.optimizer.zero_grad()
-        for i in range(2):
-            loss+=info.loss(T_out[i],p[i])
-        loss.backward()
-        info.optimizer.step()
-    '''
-    info.optimizer.zero_grad()
-    loss = info.loss(T_out[1], p[1])
-    loss.backward()
-    info.optimizer.step()
 
-    info.TKD.eval()
+        info.optimizer.zero_grad()
+        S_out, p = info.TKD(feature)
+
+        loss = 0
+
+        for i in range(2):
+            loss += TKD_loss(p[i],richOutput[i],info.loss)
+        loss.backward(retain_graph=True)
+        info.optimizer.step()
+
+
+
+
 
 
 

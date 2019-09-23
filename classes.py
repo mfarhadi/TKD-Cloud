@@ -20,6 +20,7 @@ class student():
         self.frame=None
         self.oracle=oracle
         self.TKD=TKD
+
         self.threadID = threadID
         self.source = source
         self.opt = opt
@@ -40,14 +41,4 @@ class student_detection(threading.Thread):
         Fast_detection(self.model, self.student)
         print("Exiting student" + str(self.student.threadID))
 
-class Oracle(threading.Thread):
 
-    def __init__(self, model):
-        threading.Thread.__init__(self)
-        self.oracle=model
-        self.frame=None
-        self.feature=None
-        self.info=None
-    def run(self):
-
-        Retraining(self.frame, self.feature, self.info,self.oracle)
