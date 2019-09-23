@@ -134,6 +134,8 @@ def Retraining(frame, feature,info):
         loss.backward(retain_graph=True)
         info.optimizer.step()
 
+    print("TKD Loss",loss.data.cpu())
+
 
 
 
