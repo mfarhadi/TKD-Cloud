@@ -9,6 +9,8 @@ from torch.autograd import Variable
 
 import torch.optim as optim
 from loss_preparation import TKD_loss
+import torch.distributed as dist
+import os
 
 
 
@@ -24,6 +26,28 @@ class Oracle(threading.Thread):
     def run(self):
 
         Retraining(self.frame, self.feature, self.info)
+
+
+
+def receive_tensor_helper(dist,tensor, src_rank, group, tag, num_iterations,
+                          intra_server_broadcast):
+    for i in range(num_iterations):
+        if intra_server_broadcast:
+            dist.broadcast(tensor=tensor, group=group, src=src_rank)
+        else:
+            dist.recv(tensor=tensor, src=src_rank, tag=tag)
+    print("Done with tensor recive")
+
+def send_tensor_helper(dist,tensor, dst_rank, group, tag, num_iterations,
+                       intra_server_broadcast):
+    for i in range(num_iterations):
+        if intra_server_broadcast:
+            dist.broadcast(tensor=tensor, group=group, src=1-dst_rank)
+        else:
+            dist.send(tensor=tensor, dst=dst_rank, tag=tag)
+    print("Done with tensor send")
+
+
 
 
 def Fast_detection(model, info):
@@ -118,23 +142,94 @@ def Retraining(frame, feature,info):
 
     T_out = info.oracle(frame)
 
+    network=True
 
-    richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
+    if network:
+        tensor = frame.cpu()
+        send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
+                           1, info.opt.intra_server_broadcast)
+        for parm in info.TKD.parameters():
+            temp_w=parm.cpu()
+            receive_tensor_helper(info.dist, temp_w, 1 - info.opt.rank, 0, 0,
+                                  1, info.opt.intra_server_broadcast)
+            parm[:] = temp_w.cuda()
+    else:
+        richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
 
 
-    for j in range(3):
+        for j in range(3):
 
-        info.optimizer.zero_grad()
-        S_out, p = info.TKD(feature)
+            info.optimizer.zero_grad()
 
-        loss = 0
+            S_out, p = info.TKD(feature)
 
-        for i in range(2):
-            loss += TKD_loss(p[i],richOutput[i],info.loss)
-        loss.backward(retain_graph=True)
-        info.optimizer.step()
+            loss = 0
 
-    print("TKD Loss",loss.data.cpu())
+            for i in range(2):
+
+                loss += TKD_loss(p[i],richOutput[i],info.loss)
+            loss.backward(retain_graph=True)
+            info.optimizer.step()
+
+        print("TKD Loss",loss.data.cpu())
+
+
+
+
+
+
+
+
+def server_Retraining(info):
+    args=info.opt
+    num_ranks_in_server = 1
+    if args.intra_server_broadcast:
+        num_ranks_in_server = 2
+    local_rank = args.rank % num_ranks_in_server
+    torch.cuda.set_device(local_rank)
+
+    os.environ['MASTER_ADDR'] = args.master_addr
+    os.environ['MASTER_PORT'] = str(args.master_port)
+    world_size = 2
+    dist.init_process_group(args.backend, rank=args.rank, world_size=world_size)
+    print('initied')
+    info.oracle.train()
+    info.TKD=info.TKD.cuda().eval()
+    while not info.exitFlag:
+
+        tensor = torch.zeros(([1, 3, 416, 416])).cpu()
+
+        receive_tensor_helper(dist,tensor, 1-args.rank, 0, 0,
+                             1, args.intra_server_broadcast)
+        tensor=tensor.cuda()
+
+        info.TKD.img_size = tensor.shape[-2:]
+        T_out = info.oracle(tensor)
+
+        pred, _, feature = info.model(tensor)
+        richOutput = [Variable(T_out[0].data, requires_grad=False), Variable(T_out[1].data, requires_grad=False)]
+        feature = [Variable(feature[0].data, requires_grad=False), Variable(feature[1].data, requires_grad=False)]
+
+        for j in range(3):
+
+            info.optimizer.zero_grad()
+            S_out, p = info.TKD(feature)
+            loss = 0
+
+            for i in range(2):
+
+                loss += TKD_loss(p[i], richOutput[i], info.loss)
+            loss.backward(retain_graph=True)
+            info.optimizer.step()
+
+        for parm in info.TKD.parameters():
+            send_tensor_helper(dist, parm.cpu(), 1 - info.opt.rank, 0, 0,
+                               1, info.opt.intra_server_broadcast)
+
+        print("TKD Loss", loss.data.cpu())
+
+
+
 
 
 

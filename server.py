@@ -1,4 +1,3 @@
-
 import queue
 import threading
 import time
@@ -13,11 +12,14 @@ from utils.utils import *
 global exitFlag
 exitFlag=[False]
 
-import os
-
-
 from classes import *
 
+import argparse
+import os
+import threading
+import time
+import torch
+import torch.distributed as dist
 
 def Argos(opt):
 
@@ -25,24 +27,6 @@ def Argos(opt):
 
    device = torch_utils.select_device(force_cpu=ONNX_EXPORT)
 
-
-   ############### Network ##########################
-
-   if opt.master_addr:
-        import torch.distributed as dist
-        num_ranks_in_server = 1
-        if opt.intra_server_broadcast:
-           num_ranks_in_server = 2
-        local_rank = opt.rank % num_ranks_in_server
-        torch.cuda.set_device(local_rank)
-
-        os.environ['MASTER_ADDR'] = opt.master_addr
-        os.environ['MASTER_PORT'] = str(opt.master_port)
-        world_size = 2
-        dist.init_process_group(opt.backend, rank=opt.rank, world_size=world_size)
-        print('Network initied')
-   else:
-       dist=None
 
    ################ STUDENT ##########################
 
@@ -97,14 +81,14 @@ def Argos(opt):
 
    threads = []
    threadID = 1
-   students=[]
+   Remote_students=[]
 
    # Create new threads
    for tName in threadList:
-      student_temp=student(threadID,TKD_decoder,o_model,tName,opt,dist,device)
-      thread = student_detection(s_model,student_temp)
+      student_temp=Remote_student(threadID,TKD_decoder,s_model,o_model,opt,device)
+      thread = Remote_student_update(student_temp)
       thread.start()
-      threads.append(thread)
+      Remote_students.append(thread)
       threadID += 1
 
 
@@ -142,15 +126,21 @@ if __name__ == '__main__':
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")
-    parser.add_argument("--rank", type=int, default=1,
+    parser.add_argument("--rank", type=int, default=0,
                         help="Rank of current worker")
     parser.add_argument('-p', "--master_port", default=12345,
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
-
     opt = parser.parse_args()
-    print(opt)
+
 
     with torch.no_grad():
         Argos(opt)
+
+
+
+
+
+
+

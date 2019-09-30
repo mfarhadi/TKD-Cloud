@@ -2,3 +2,5 @@
 *.pt
 
 weights/
+
+*.pyc
