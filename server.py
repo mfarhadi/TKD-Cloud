@@ -54,8 +54,8 @@ def Argos(opt):
    TKD_decoder = Darknet('cfg/TKD_decoder.cfg', img_size)
 
 
-   if s_weights.endswith('.pt'):  # pytorch format
-       TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
+   #if s_weights.endswith('.pt'):  # pytorch format
+   TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
 
    ################ Teacher ##########################
 
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
@@ -122,7 +122,7 @@ if __name__ == '__main__':
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
                         help="Send tensor (if not specified, will receive tensor)")
-    parser.add_argument("--master_addr", type=str,default='localhost',
+    parser.add_argument("--master_addr", type=str,default='10.218.110.18',
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")

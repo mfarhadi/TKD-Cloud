@@ -36,7 +36,7 @@ def receive_tensor_helper(dist,tensor, src_rank, group, tag, num_iterations,
             dist.broadcast(tensor=tensor, group=group, src=src_rank)
         else:
             dist.recv(tensor=tensor, src=src_rank, tag=tag)
-    print("Done with tensor recive")
+
 
 def send_tensor_helper(dist,tensor, dst_rank, group, tag, num_iterations,
                        intra_server_broadcast):
@@ -45,7 +45,7 @@ def send_tensor_helper(dist,tensor, dst_rank, group, tag, num_iterations,
             dist.broadcast(tensor=tensor, group=group, src=1-dst_rank)
         else:
             dist.send(tensor=tensor, dst=dst_rank, tag=tag)
-    print("Done with tensor send")
+
 
 
 
@@ -65,6 +65,7 @@ def Fast_detection(model, info):
         dataset = LoadWebcam(info.source, img_size=info.opt.img_size, half=info.opt.half)
     else:
         save_img = True
+        print('salam')
         dataset = LoadImages(info.source, img_size=info.opt.img_size, half=info.opt.half)
 
     # Get classes and colors
@@ -142,9 +143,9 @@ def Retraining(frame, feature,info):
 
     T_out = info.oracle(frame)
 
-    network=True
 
-    if network:
+
+    if info.network:
         tensor = frame.cpu()
         send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
                            1, info.opt.intra_server_broadcast)
@@ -171,7 +172,7 @@ def Retraining(frame, feature,info):
             loss.backward(retain_graph=True)
             info.optimizer.step()
 
-        print("TKD Loss",loss.data.cpu())
+        #print("TKD Loss",loss.data.cpu())
 
 
 

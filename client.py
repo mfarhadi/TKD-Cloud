@@ -1,4 +1,4 @@
-
+'''
 import argparse
 import os
 import threading
@@ -106,6 +106,112 @@ if __name__ == '__main__':
             temp=torch.zeros(temp.shape)
             parm[:]=temp.cuda()
 
+'''
+import cv2
+import csv
+from pytube import YouTube
+import os
+import time
+import scipy.io as sio
+from os import listdir
+'''
+csvfile=open('yt-valid.csv', 'rt')
 
+rows=csv.reader(csvfile, delimiter=',')
+previous_clip='ghanbar'
+secound=0
+total_objects=0
+print(rows)
+for row in rows:
+    print(row)
+    try:
+        if row[0]!=previous_clip:
+            yt=YouTube('http://youtu.be/'+row[0])
+            yt.streams.first().download()
+            os.rename(yt.streams.first().default_filename, 'test.ext')
+            cap = cv2.VideoCapture('test.ext')
+            if previous_clip!='ghanbar':
+                os.remove('test.ext')
+            previous_clip=row[0]
+            frame_counter=0
+            print(row[0])
+        if row[5]=='present':
+            box=[]
+            start=int(row[1])
+            xmin=float(row[6])
+            xmax=float(row[7])
+            ymin=float(row[8])
+            ymax=float(row[9])
+            name=row[3]
+            box.append((xmin+xmax)/2)
+            box.append((ymin + ymax) / 2)
+            box.append((xmax-xmin)/2)
+            box.append((ymax - ymin) / 2)
+            classid=row[2]
+
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps=float(1000/float(fps))
+    except:
+        print('except video')
+    if secound==1:
+
+        while True:
+            res, img = cap.read()
+            if res:
+                frame_counter+=1
+
+                cv2.imshow('janam',img)
+                cv2.waitKey(1)
+                if frame_counter==start:
+                    time.sleep(2)
+            else:
+                print("Unable to read image")
+                secound=0
+                break
+'''
+gt=sio.loadmat('matlab.mat')
+gt=gt['bb']
+gt=gt[0]
+gt_counter=0
+gt_name='ame'
+activate_sleep=0
+total_objects=0
+
+
+gt=sio.loadmat('matlab.mat')
+gt=gt['bb']
+gt=gt[0]
+gt_counter=0
+gt_name='ame'
+activate_sleep=0
+total_objects=0
+
+
+folder='aeroplane'
+for i in range(9):
+    video_list = listdir('/media/common/DATAPART1/datasets/YouTube-Objects/videos/'+folder)
+    video_list.sort()
+    for image in video_list:
+        image_index=image.split('.',1)[0]
+        print(image_index)
+        img=cv2.imread('/media/common/DATAPART1/datasets/YouTube-Objects/videos/'+folder+'/'+image)
+
+        cv2.imshow('test',img)
+        cv2.waitKey(1)
+
+        #img = plot_boxes_cv2(img, TBN_bboxes, None, class_names)
+        b = str(gt[gt_counter][0][0]).split('0', 1)
+        if int(b[1])==int(image_index):
+            while True:
+                print(b[0])
+                gt_counter+=1
+
+                b = str(gt[gt_counter][0][0]).split('0', 1)
+                if int(b[1]) != int(image_index):
+                    break
+        if(b[0])!=folder:
+            folder=b[0]
+            break
 
 

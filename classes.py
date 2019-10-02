@@ -28,6 +28,7 @@ class student():
         self.loss=nn.MSELoss().cuda()
         self.dist=dist
         self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
+        self.network=False
 
 
 class Remote_student():
