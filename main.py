@@ -151,7 +151,7 @@ if __name__ == '__main__':
                         help="Broadcast within a server")
 
     opt = parser.parse_args()
-    
+
 
     with torch.no_grad():
         Argos(opt)

@@ -185,7 +185,10 @@ def Argos(opt):
            b = str(gt[gt_counter][0][0]).split('0', 1)
            if int(b[1]) == int(image_index):
                pred=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
-               pred=pred[0]
+               pred = pred[0]
+               if pred is not None:
+                   pred[:, :4] = scale_coords(img.shape[1:], pred[:, :4], im0s.shape).round()
+
                seen += 1
 
                labels=[]
@@ -234,15 +237,23 @@ def Argos(opt):
                            continue
 
                        # Best iou, index between pred and targets
+
                        m = (pcls == tcls_tensor).nonzero().view(-1)
                        iou, bi = bbox_iou(pbox, tbox[m]).max(0)
+
 
                        # If iou > threshold and class is correct mark as correct
                        if iou > iou_thres and m[bi] not in detected:  # and pcls == tcls[bi]:
                            correct[i] = 1
                            detected.append(m[bi])
                # Append statistics (correct, conf, pcls, tcls)
+               #print(correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls )
                stats.append((correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
+               stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
+               if len(stats1):
+                   p, r, ap, f1, ap_class = ap_per_class(*stats1)
+                   mp, mr, map, mf1 = p.mean(), r.mean(), ap.mean(), f1.mean()
+               print(seen, mp, mr, map, mf1)
 
 
            if (b[0]) != folder:
