@@ -90,6 +90,8 @@ def Fast_detection(model, info):
       pred_TKD, _ = info.TKD(feature)
       pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
+      test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
+      print(test_v[0])
 
       if not oracle_T.is_alive():
           oracle_T = Oracle()

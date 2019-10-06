@@ -128,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='path to weights file')
-    parser.add_argument('--source', type=str, default=['/media/common/DATAPART1/datasets/YouTube-Objects/videos/aeroplane'], help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default=['0'], help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.05, help='object confidence threshold')
@@ -151,7 +151,7 @@ if __name__ == '__main__':
                         help="Broadcast within a server")
 
     opt = parser.parse_args()
-    print(opt)
+    
 
     with torch.no_grad():
         Argos(opt)

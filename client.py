@@ -114,6 +114,8 @@ import os
 import time
 import scipy.io as sio
 from os import listdir
+from utils.datasets import *
+from utils.utils import *
 '''
 csvfile=open('yt-valid.csv', 'rt')
 
@@ -186,8 +188,17 @@ gt_counter=0
 gt_name='ame'
 activate_sleep=0
 total_objects=0
+print(len(gt))
+pre='000000'
+classes = load_classes('data/coco.names')
+print(classes.index('bird'))
+for i in range(len(gt)):
+    t=0
+    b = str(gt[i][0][0]).split('0', 1)
 
 
+
+'''
 folder='aeroplane'
 for i in range(9):
     video_list = listdir('/media/common/DATAPART1/datasets/YouTube-Objects/videos/'+folder)
@@ -213,5 +224,5 @@ for i in range(9):
         if(b[0])!=folder:
             folder=b[0]
             break
-
+'''
 

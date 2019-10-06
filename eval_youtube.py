@@ -124,9 +124,10 @@ def Argos(opt):
    gt = gt['bb']
    gt = gt[0]
    gt_counter = 0
+   iou_thres = 0.5
    folder = 'aeroplane'
 
-   for i in range(9):
+   for cl_counter in range(9):
 
 
        model.eval()
@@ -138,7 +139,15 @@ def Argos(opt):
 
        # Get classes and colors
        classes = load_classes(parse_data_cfg(info.opt.data)['names'])
-       colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(classes))]
+
+       if folder=='aeroplane':
+           c_folder='airplane'
+       elif folder=='motorbike':
+           c_folder='motorcycle'
+       else:
+           c_folder=folder
+       tcls_temp = classes.index(c_folder)
+
 
        # Run inference
        info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
@@ -170,42 +179,76 @@ def Argos(opt):
 
 
 
-           for i, det in enumerate(
-                   non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)):  # detections per image
-               s, im0 = '', im0s
 
-               if det is not None and len(det):
 
-                   # Rescale boxes from img_size to im0 size
-
-                   det[:, :4] = scale_coords(img.shape[1:], det[:, :4], im0.shape).round()
-
-                   # Print results
-                   for c in det[:, -1].unique():
-                       n = (det[:, -1] == c).sum()  # detections per class
-                       s += '%g %ss, ' % (n, classes[int(c)])  # add to string
-
-                   # Write results
-                   for *xyxy, conf, _, cls in det:
-                       label = '%s %.2f' % (classes[int(cls)], conf)
-                       plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
            b = str(gt[gt_counter][0][0]).split('0', 1)
            if int(b[1]) == int(image_index):
-               while True:
-                   for j in gt[gt_counter][1]:
-                       print(j)
-                       print(xyxy)
-                       plot_one_box(j, im0, label=label, color=colors[int(cls)])
-                   wait_request=1
-                   gt_counter += 1
+               pred=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
+               pred=pred[0]
+               seen += 1
 
-                   b = str(gt[gt_counter][0][0]).split('0', 1)
-                   if int(b[1]) != int(image_index):
-                       break
+               labels=[]
+
+               for j in gt[gt_counter][1]:
+
+                   labels.append([tcls_temp,j[0],j[1],j[2],j[3]])
+
+
+               labels=torch.FloatTensor(labels).cuda()
+               gt_counter += 1
+               b = str(gt[gt_counter][0][0]).split('0', 1)
+               nl = len(labels)
+
+               if pred is None:
+
+                   if nl:
+                       stats.append(([], torch.Tensor(), torch.Tensor(), tcls))
+                   continue
+
+               tcls = labels[:, 0].tolist() if nl else []  # target class
+               correct = [0] * len(pred)
+
+               if nl:
+                   detected = []
+                   tcls_tensor = labels[:, 0]
+
+                   # target boxes
+
+                   tbox = labels[:, 1:5]
+
+                   # Search for correct predictions
+                   for i, det in  enumerate(pred):
+
+                       pbox=det[0:4]
+
+                       pcls=det[6]
+
+                       # Break if all targets already located in image
+                       if len(detected) == nl:
+
+                           break
+
+                       # Continue if predicted class not among image classes
+                       if pcls.item() not in tcls:
+                           continue
+
+                       # Best iou, index between pred and targets
+                       m = (pcls == tcls_tensor).nonzero().view(-1)
+                       iou, bi = bbox_iou(pbox, tbox[m]).max(0)
+
+                       # If iou > threshold and class is correct mark as correct
+                       if iou > iou_thres and m[bi] not in detected:  # and pcls == tcls[bi]:
+                           correct[i] = 1
+                           detected.append(m[bi])
+               # Append statistics (correct, conf, pcls, tcls)
+               stats.append((correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
+
+
            if (b[0]) != folder:
                folder = b[0]
                break
+
 
 
                        # Stream results
@@ -213,8 +256,20 @@ def Argos(opt):
 
            info.results = []
 
-           cv2.imshow(str(info.threadID), im0s)
-           cv2.waitKey(1)
+
+
+       stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
+       if len(stats1):
+           p, r, ap, f1, ap_class = ap_per_class(*stats1)
+           mp, mr, map, mf1 = p.mean(), r.mean(), ap.mean(), f1.mean()
+           #nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+       else:
+           nt = torch.zeros(1)
+
+       # Print results
+       pf = '%20s' + '%10.3g' * 6  # print format
+       #print(pf % ('all', seen, nt.sum(), mp, mr, map, mf1))
+       print( seen, mp, mr, map, mf1)
 
 
 

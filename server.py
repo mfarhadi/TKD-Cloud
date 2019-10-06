@@ -128,7 +128,7 @@ if __name__ == '__main__':
                         help="Use multiple threads")
     parser.add_argument("--rank", type=int, default=0,
                         help="Rank of current worker")
-    parser.add_argument('-p', "--master_port", default=12345,
+    parser.add_argument('-p', "--master_port", default=12344,
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
