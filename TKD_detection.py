@@ -90,8 +90,8 @@ def Fast_detection(model, info):
       pred_TKD, _ = info.TKD(feature)
       pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
-      test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
-      print(test_v[0])
+      #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
+      #print(test_v[0])
 
       if not oracle_T.is_alive():
           oracle_T = Oracle()
@@ -142,11 +142,6 @@ def Fast_detection(model, info):
 
 def Retraining(frame, feature,info):
 
-
-    T_out = info.oracle(frame)
-
-
-
     if info.network:
         tensor = frame.cpu()
         send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
@@ -157,6 +152,7 @@ def Retraining(frame, feature,info):
                                   1, info.opt.intra_server_broadcast)
             parm[:] = temp_w.cuda()
     else:
+        T_out = info.oracle(frame)
         richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
 
 
@@ -174,7 +170,7 @@ def Retraining(frame, feature,info):
             loss.backward(retain_graph=True)
             info.optimizer.step()
 
-        #print("TKD Loss",loss.data.cpu())
+        print("TKD Loss",loss.data.cpu())
 
 
 

@@ -24,7 +24,7 @@ from loss_preparation import TKD_loss
 import torch.distributed as dist
 import os
 import scipy.io as sio
-
+import numpy as np
 
 
 import threading
@@ -44,8 +44,8 @@ def Argos(opt):
 
    device = torch_utils.select_device(force_cpu=ONNX_EXPORT)
 
-
-
+   data = opt.data
+   data_dict = parse_data_cfg(data)
 
    ################ STUDENT ##########################
 
@@ -76,6 +76,27 @@ def Argos(opt):
    #if s_weights.endswith('.pt'):  # pytorch format
    TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
 
+   hyp = {'giou': 1.582,  # giou loss gain
+          'cls': 27.76,  # cls loss gain  (CE=~1.0, uCE=~20)
+          'cls_pw': 1.446,  # cls BCELoss positive_weight
+          'obj': 21.35,  # obj loss gain (*=80 for uBCE with 80 classes)
+          'obj_pw': 3.941,  # obj BCELoss positive_weight
+          'iou_t': 0.2635,  # iou training threshold
+          'lr0': 0.002324,  # initial learning rate (SGD=1E-3, Adam=9E-5)
+          'lrf': -4.,  # final LambdaLR learning rate = lr0 * (10 ** lrf)
+          'momentum': 0.97,  # SGD momentum
+          'weight_decay': 0.0004569,  # optimizer weight decay
+          'hsv_s': 0.5703,  # image HSV-Saturation augmentation (fraction)
+          'hsv_v': 0.3174,  # image HSV-Value augmentation (fraction)
+          'degrees': 1.113,  # image rotation (+/- deg)
+          'translate': 0.06797,  # image translation (+/- fraction)
+          'scale': 0.1059,  # image scale (+/- gain)
+          'shear': 0.5768}  # image shear (+/- deg)
+
+   TKD_decoder.hyp = hyp  # attach hyperparameters to model
+   TKD_decoder.nc=int(data_dict['classes'])
+   TKD_decoder.arc = opt.arc
+
    ################ Teacher ##########################
 
    o_weights, half = opt.o_weights, opt.half
@@ -96,6 +117,24 @@ def Argos(opt):
    if half:
        o_model.half()
 
+   ################## Oracle for inference ###################
+
+   Oracle_model = Darknet(opt.o_cfg, img_size)
+
+   # Load weights
+   if o_weights.endswith('.pt'):  # pytorch format
+       Oracle_model.load_state_dict(torch.load(o_weights, map_location=device)['model'])
+   else:  # darknet format
+       _ = load_darknet_weights(Oracle_model, o_weights)
+
+   # Eval mode
+   Oracle_model.to(device).eval()
+
+   # Half precision
+   half = half and device.type != 'cpu'  # half precision only supported on CUDA
+   if half:
+       Oracle_model.half()
+
    threadList = opt.source
 
    threads = []
@@ -104,7 +143,7 @@ def Argos(opt):
 
 
 
-   info=student(threadID,TKD_decoder,o_model,opt.source[0],opt,dist,device)
+   info=student(threadID,TKD_decoder,o_model,opt.source,opt,dist,device)
 
    # Configure run
 
@@ -119,34 +158,29 @@ def Argos(opt):
    jdict, stats, ap, ap_class = [], [], [], []
 
 
-
-   gt = sio.loadmat('matlab.mat')
-   gt = gt['bb']
-   gt = gt[0]
-   gt_counter = 0
    iou_thres = 0.5
-   folder = 'aeroplane'
 
-   for cl_counter in range(9):
 
+   for source in info.source:
+
+       webcam = source == '0' or source.startswith('rtsp') or source.startswith('http')
+       streams = source == 'streams.txt'
 
        model.eval()
 
        info.TKD.eval().cuda()
+
        # Set Dataloader
 
-       dataset = LoadImages('/media/common/DATAPART1/datasets/YouTube-Objects/videos/' + folder, img_size=info.opt.img_size, half=info.opt.half)
-
-       # Get classes and colors
-       classes = load_classes(parse_data_cfg(info.opt.data)['names'])
-
-       if folder=='aeroplane':
-           c_folder='airplane'
-       elif folder=='motorbike':
-           c_folder='motorcycle'
+       if streams:
+           torch.backends.cudnn.benchmark = True  # set True to speed up constant image size inference
+           dataset = LoadStreams(source, img_size=info.opt.img_size, half=info.opt.half)
+       elif webcam:
+           stream_img = True
+           dataset = LoadWebcam(source, img_size=info.opt.img_size, half=info.opt.half)
        else:
-           c_folder=folder
-       tcls_temp = classes.index(c_folder)
+           save_img = True
+           dataset = LoadImages(source, img_size=info.opt.img_size, half=info.opt.half)
 
 
        # Run inference
@@ -154,133 +188,68 @@ def Argos(opt):
        oracle_T = Oracle()
        info.oracle.train().cuda()
 
+
+       counter=0
+       confidence=0.001
+       records=np.zeros((1000,2))
        for path, img, im0s, vid_cap in dataset:
 
            info.collecting = True
            # Get detections
 
-           image_index =path.split('/')[8].split('.')[0]
 
+           counter+=1
            info.frame[0, :, 0:img.shape[1], :] = torch.from_numpy(img)
            info.frame = info.frame.cuda()
            pred, _, feature = model(info.frame)
            info.TKD.img_size = info.frame.shape[-2:]
-           pred_TKD, _ = info.TKD(feature)
-           pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
+           pred_TKD, p = info.TKD(feature)
 
-           if not oracle_T.is_alive():
-               oracle_T = Oracle()
-               oracle_T.frame=info.frame
-               oracle_T.feature=[Variable(feature[0].data, requires_grad=False),Variable(feature[1].data, requires_grad=False)]
-               oracle_T.info=info
-               oracle_T.start()
+           Oracle_model.train()
+           T_out = Oracle_model(info.frame)
 
-           # oracle_T.join()
+           t1=time.time()
+           richOutput = [Variable(T_out[0].data, requires_grad=False), Variable(T_out[1].data, requires_grad=False)]
+           loss=0
 
+           for i in range(2):
+               loss += TKD_loss(p[i], richOutput[i], info.loss)
+           t2=time.time()
+           info.TKD.train()
+           pred= info.TKD(feature)
+           Oracle_model.eval()
+           labels,_=Oracle_model(info.frame)
+           t3=time.time()
+           labels = non_max_suppression(labels, confidence, 0.5)
 
+           labels=labels[0]
 
-
-
-
-           b = str(gt[gt_counter][0][0]).split('0', 1)
-           if int(b[1]) == int(image_index):
-               pred=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
-               pred = pred[0]
-               if pred is not None:
-                   pred[:, :4] = scale_coords(img.shape[1:], pred[:, :4], im0s.shape).round()
-
-               seen += 1
-
-               labels=[]
-
-               for j in gt[gt_counter][1]:
-
-                   labels.append([tcls_temp,j[0],j[1],j[2],j[3]])
-
-
-               labels=torch.FloatTensor(labels).cuda()
-               gt_counter += 1
-               b = str(gt[gt_counter][0][0]).split('0', 1)
-               nl = len(labels)
-
-               if pred is None:
-
-                   if nl:
-                       stats.append(([], torch.Tensor(), torch.Tensor(), tcls))
-                   continue
-
-               tcls = labels[:, 0].tolist() if nl else []  # target class
-               correct = [0] * len(pred)
-
-               if nl:
-                   detected = []
-                   tcls_tensor = labels[:, 0]
-
-                   # target boxes
-
-                   tbox = labels[:, 1:5]
-
-                   # Search for correct predictions
-                   for i, det in  enumerate(pred):
-
-                       pbox=det[0:4]
-
-                       pcls=det[6]
-
-                       # Break if all targets already located in image
-                       if len(detected) == nl:
-
-                           break
-
-                       # Continue if predicted class not among image classes
-                       if pcls.item() not in tcls:
-                           continue
-
-                       # Best iou, index between pred and targets
-
-                       m = (pcls == tcls_tensor).nonzero().view(-1)
-                       iou, bi = bbox_iou(pbox, tbox[m]).max(0)
-
-
-                       # If iou > threshold and class is correct mark as correct
-                       if iou > iou_thres and m[bi] not in detected:  # and pcls == tcls[bi]:
-                           correct[i] = 1
-                           detected.append(m[bi])
-               # Append statistics (correct, conf, pcls, tcls)
-               #print(correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls )
-               stats.append((correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
-               stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
-               if len(stats1):
-                   p, r, ap, f1, ap_class = ap_per_class(*stats1)
-                   mp, mr, map, mf1 = p.mean(), r.mean(), ap.mean(), f1.mean()
-               print(seen, mp, mr, map, mf1)
-
-
-           if (b[0]) != folder:
-               folder = b[0]
+           if labels is not None:
+               labels = labels[:, [4, 6, 0, 1, 2, 3]].round()
+               labels[:, 2:] = xyxy2xywh(labels[:, 2:])
+               labels[:, 2:] = labels[:, 2:] / 416
+               labels[:, 0] = labels[:, 0] * 0
+           if labels is not None:
+               loss, loss_items = compute_loss(pred, labels, info.TKD)
+               t4=time.time()
+               print(labels.shape[0],t2-t1,t4-t3)
+               records[labels.shape[0],:]=[t2-t1,t4-t3]
+           if counter%100==0:
+               if confidence<0.2:
+                   confidence*=2
+               elif confidence<0.9:
+                   confidence+=0.1
+           if labels.shape[0]==1:
                break
+           info.TKD.eval()
 
 
+       file = open('loss_time'+'.txt', 'a')
+       for i in range(500):
+           if records[i,0]!=0:
+               file.write('\n'+str(i)+','+str(records[i,0]*1000)+','+str(records[i,1]*1000))
+       file.close()
 
-                       # Stream results
-                       # if stream_img:
-
-           info.results = []
-
-
-
-       stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
-       if len(stats1):
-           p, r, ap, f1, ap_class = ap_per_class(*stats1)
-           mp, mr, map, mf1 = p.mean(), r.mean(), ap.mean(), f1.mean()
-           #nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
-       else:
-           nt = torch.zeros(1)
-
-       # Print results
-       pf = '%20s' + '%10.3g' * 6  # print format
-       #print(pf % ('all', seen, nt.sum(), mp, mr, map, mf1))
-       print( seen, mp, mr, map, mf1)
 
 
 
@@ -292,12 +261,13 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='path to weights file')
-    parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default=['/media/common/DATAPART1/datasets/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos425_x264.mp4'], help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.02, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.3, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
+    parser.add_argument('--arc', type=str, default='defaultpw', help='yolo architecture')  # defaultpw, uCE, uBCE
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
                         help="Backend")

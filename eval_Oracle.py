@@ -96,6 +96,24 @@ def Argos(opt):
    if half:
        o_model.half()
 
+   ################## Oracle for inference ###################
+
+   Oracle_model = Darknet(opt.o_cfg, img_size)
+
+   # Load weights
+   if o_weights.endswith('.pt'):  # pytorch format
+       Oracle_model.load_state_dict(torch.load(o_weights, map_location=device)['model'])
+   else:  # darknet format
+       _ = load_darknet_weights(Oracle_model, o_weights)
+
+   # Eval mode
+   Oracle_model.to(device).eval()
+
+   # Half precision
+   half = half and device.type != 'cpu'  # half precision only supported on CUDA
+   if half:
+       Oracle_model.half()
+
    threadList = opt.source
 
    threads = []
@@ -104,7 +122,7 @@ def Argos(opt):
 
 
 
-   info=student(threadID,TKD_decoder,o_model,opt.source[0],opt,dist,device)
+   info=student(threadID,TKD_decoder,o_model,opt.source,opt,dist,device)
 
    # Configure run
 
@@ -119,34 +137,29 @@ def Argos(opt):
    jdict, stats, ap, ap_class = [], [], [], []
 
 
-
-   gt = sio.loadmat('matlab.mat')
-   gt = gt['bb']
-   gt = gt[0]
-   gt_counter = 0
    iou_thres = 0.5
-   folder = 'aeroplane'
 
-   for cl_counter in range(9):
 
+   for source in info.source:
+
+       webcam = source == '0' or source.startswith('rtsp') or source.startswith('http')
+       streams = source == 'streams.txt'
 
        model.eval()
 
        info.TKD.eval().cuda()
+
        # Set Dataloader
 
-       dataset = LoadImages('/media/common/DATAPART1/datasets/YouTube-Objects/videos/' + folder, img_size=info.opt.img_size, half=info.opt.half)
-
-       # Get classes and colors
-       classes = load_classes(parse_data_cfg(info.opt.data)['names'])
-
-       if folder=='aeroplane':
-           c_folder='airplane'
-       elif folder=='motorbike':
-           c_folder='motorcycle'
+       if streams:
+           torch.backends.cudnn.benchmark = True  # set True to speed up constant image size inference
+           dataset = LoadStreams(source, img_size=info.opt.img_size, half=info.opt.half)
+       elif webcam:
+           stream_img = True
+           dataset = LoadWebcam(source, img_size=info.opt.img_size, half=info.opt.half)
        else:
-           c_folder=folder
-       tcls_temp = classes.index(c_folder)
+           save_img = True
+           dataset = LoadImages(source, img_size=info.opt.img_size, half=info.opt.half)
 
 
        # Run inference
@@ -159,16 +172,18 @@ def Argos(opt):
            info.collecting = True
            # Get detections
 
-           image_index =path.split('/')[8].split('.')[0]
+
 
            info.frame[0, :, 0:img.shape[1], :] = torch.from_numpy(img)
            info.frame = info.frame.cuda()
            pred, _, feature = model(info.frame)
            info.TKD.img_size = info.frame.shape[-2:]
            pred_TKD, _ = info.TKD(feature)
+
            pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
            if not oracle_T.is_alive():
+
                oracle_T = Oracle()
                oracle_T.frame=info.frame
                oracle_T.feature=[Variable(feature[0].data, requires_grad=False),Variable(feature[1].data, requires_grad=False)]
@@ -178,9 +193,83 @@ def Argos(opt):
            # oracle_T.join()
 
 
+           pred = non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
+           pred = pred[0]
+
+           labels,_=Oracle_model(info.frame)
+
+           labels = non_max_suppression(labels, 0.3, 0.5)
+           labels=labels[0]
 
 
 
+           if labels is not None:
+
+               labels=labels[:,[6,0,1,2,3]].round()
+
+               nl = len(labels)
+           else:
+               nl=None
+
+
+           tcls = labels[:, 0].tolist() if nl else []  # target class
+           seen+=1
+           if pred is None:
+               if nl:
+                   stats.append(([], torch.Tensor(), torch.Tensor(), tcls))
+               continue
+
+           tcls = labels[:, 0].tolist() if nl else []  # target class
+           correct = [0] * len(pred)
+
+           if nl:
+               detected = []
+               tcls_tensor = labels[:, 0]
+
+               # target boxes
+
+               tbox = labels[:, 1:5]
+
+               # Search for correct predictions
+               for i, det in enumerate(pred):
+
+                   pbox = det[0:4]
+
+                   pcls = det[6]
+
+                   # Break if all targets already located in image
+                   if len(detected) == nl:
+                       break
+
+                   # Continue if predicted class not among image classes
+                   if pcls.item() not in tcls:
+                       continue
+
+                   # Best iou, index between pred and targets
+
+                   m = (pcls == tcls_tensor).nonzero().view(-1)
+                   iou, bi = bbox_iou(pbox, tbox[m]).max(0)
+
+                   # If iou > threshold and class is correct mark as correct
+                   print(iou)
+                   if iou > iou_thres and m[bi] not in detected:  # and pcls == tcls[bi]:
+                       correct[i] = 1
+                       detected.append(m[bi])
+           print(correct)
+           print('-------------')
+
+
+
+           # Append statistics (correct, conf, pcls, tcls)
+           # print(correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls )
+           stats.append((correct, pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
+           stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
+           if len(stats1):
+               p, r, ap, f1, ap_class = ap_per_class(*stats1)
+               mp, mr, map, mf1 = p.mean(), r.mean(), ap.mean(), f1.mean()
+           print(seen, mp, mr, map, mf1)
+
+           '''
 
            b = str(gt[gt_counter][0][0]).split('0', 1)
            if int(b[1]) == int(image_index):
@@ -267,6 +356,7 @@ def Argos(opt):
 
            info.results = []
 
+           '''
 
 
        stats1 = [np.concatenate(x, 0) for x in list(zip(*stats))]  # to numpy
@@ -292,10 +382,10 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='path to weights file')
-    parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default=['/media/common/DATAPART1/datasets/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos947_x264.mp4'], help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.02, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.3, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')

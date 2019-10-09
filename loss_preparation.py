@@ -27,7 +27,7 @@ def TKD_loss(output,target, loss):
     tmp_taget=(target.data * 0.4) + (output.data * 0.6)
 
     for i in range(confidence.shape[0]):
-        if float(float(confidence[i].cpu().data))<0.4:
+        if float(float(confidence[i].cpu().data))<0.2:
             break
         confidence_conter+=1
 
