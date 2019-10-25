@@ -103,6 +103,7 @@ def Argos(opt):
    for tName in threadList:
       student_temp=student(threadID,TKD_decoder,o_model,tName,opt,dist,device)
       student_temp.network=network
+      student_temp.precision=True
       thread = student_detection(s_model,student_temp)
       thread.start()
       threads.append(thread)
@@ -128,10 +129,10 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='path to weights file')
-    parser.add_argument('--source', type=str, default=['/media/common/DATAPART1/datasets/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos947_x264.mp4'], help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default=['0'], help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.05, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.3, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
@@ -139,7 +140,7 @@ if __name__ == '__main__':
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
                         help="Send tensor (if not specified, will receive tensor)")
-    parser.add_argument("--master_addr", type=str,default='10.218.110.18',
+    parser.add_argument("--master_addr", type=str,default='127.0.0.1',
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")

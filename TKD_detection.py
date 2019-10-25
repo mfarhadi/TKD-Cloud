@@ -11,10 +11,42 @@ import torch.optim as optim
 from loss_preparation import TKD_loss
 import torch.distributed as dist
 import os
+from classes import *
+
+import socket
+import numpy
+import time
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 
 
 import threading
+
+class Remote_precision(threading.Thread):
+
+    def __init__(self, image,detection, info):
+        threading.Thread.__init__(self)
+        self.image=image
+        if detection is None:
+            self.result=np.zeros(1)
+        else:
+            self.result=detection.detach().cpu().numpy()
+        self.info=info
+    def run(self):
+        sock = socket.socket()
+        sock.connect((self.info.opt.master_addr, 8000))
+        serialized_data = pickle.dumps(self.image, protocol=2)
+        sock.sendall(serialized_data)
+        sock.close()
+        sock = socket.socket()
+        sock.connect((self.info.opt.master_addr, 8000))
+        serialized_data = pickle.dumps(self.result, protocol=2)
+        sock.sendall(serialized_data)
+        sock.close()
 
 class Oracle(threading.Thread):
 
@@ -75,6 +107,7 @@ def Fast_detection(model, info):
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
     oracle_T=Oracle()
+    rem_prec = Remote_precision(info.frame, info.frame, info)
     info.oracle.train().cuda()
 
     for path, img, im0s, vid_cap in dataset:
@@ -101,9 +134,13 @@ def Fast_detection(model, info):
           oracle_T.start()
 
       #oracle_T.join()
+      detection=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
 
+      if not rem_prec.is_alive() and info.precision:
+          rem_prec=Remote_precision(img,detection[0],info)
+          rem_prec.start()
 
-      for i, det in enumerate(non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)):  # detections per image
+      for i, det in enumerate(detection):  # detections per image
           s,im0='',im0s
 
 

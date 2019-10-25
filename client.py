@@ -172,6 +172,7 @@ for row in rows:
                 secound=0
                 break
 '''
+'''
 gt=sio.loadmat('matlab.mat')
 gt=gt['bb']
 gt=gt[0]
@@ -196,7 +197,7 @@ for i in range(len(gt)):
     t=0
     b = str(gt[i][0][0]).split('0', 1)
 
-
+'''
 
 '''
 folder='aeroplane'
