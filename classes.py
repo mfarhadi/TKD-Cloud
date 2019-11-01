@@ -38,6 +38,7 @@ class student():
         self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
         self.network=False
         self.precision=False
+        self.socket=None
 
 
 class Remote_student():

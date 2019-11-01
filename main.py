@@ -103,7 +103,11 @@ def Argos(opt):
    for tName in threadList:
       student_temp=student(threadID,TKD_decoder,o_model,tName,opt,dist,device)
       student_temp.network=network
-      student_temp.precision=True
+      if opt.Lacc:
+        student_temp.precision=True
+        temp_s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        temp_s.connect((opt.master_addr, 8000))
+        student_temp.socket=temp_s
       thread = student_detection(s_model,student_temp)
       thread.start()
       threads.append(thread)
@@ -133,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
-    parser.add_argument('--nms-thres', type=float, default=0.3, help='iou threshold for non-maximum suppression')
+    parser.add_argument('--nms-thres', type=float, default=0.2, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
@@ -150,6 +154,7 @@ if __name__ == '__main__':
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
+    parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
 
     opt = parser.parse_args()
 

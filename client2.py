@@ -1,4 +1,4 @@
-
+'''
 import argparse
 import os
 import threading
@@ -97,6 +97,46 @@ if __name__ == '__main__':
         for parm in TKD.parameters():
             send_tensor_helper(parm.cpu(), 1 - args.rank, 0, 0,
                                1, args.intra_server_broadcast)
+
+'''
+import cv2
+import csv
+from pytube import YouTube
+import os
+import time
+import scipy.io as sio
+from os import listdir
+from utils.datasets import *
+from utils.utils import *
+import socket
+import pickle
+import numpy
+
+HOST = '127.0.0.1'  # The server's hostname or IP address
+PORT = 8000       # The port used by the server
+
+data= numpy.zeros((3, 416,416),dtype=numpy.int8)
+
+j=pickle.dumps(data, protocol=2)
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    t1=time.time()
+    s.connect((HOST, PORT))
+    s.sendall(str(len(j)).encode())
+    data = s.recv(1024)
+    s.sendall(j)
+    data = s.recv(1024)
+
+    data = numpy.zeros((79, 5))
+    j = pickle.dumps(data, protocol=2)
+
+    s.sendall(str(len(j)).encode())
+
+    data = s.recv(1024)
+
+    s.sendall(j)
+    t2 = time.time()
+    print(t2-t1)
 
 
 

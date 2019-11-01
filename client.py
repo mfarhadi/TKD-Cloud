@@ -116,6 +116,75 @@ import scipy.io as sio
 from os import listdir
 from utils.datasets import *
 from utils.utils import *
+import socket
+import pickle
+import sys
+
+
+s = socket.socket()
+s.bind((b'',8000))
+s.listen(1)
+c,a = s.accept()
+
+while True:
+    data = b''
+    size = c.recv(4096)
+    c.sendall(size)
+    while len(data)<int(size):
+        block = c.recv(4096)
+        if not block: break
+        data += block
+
+    if sys.version_info.major < 3:
+        unserialized_input = pickle.loads(data)
+    else:
+        unserialized_input = pickle.loads(data,encoding='bytes')
+
+    print(int(size))
+    print(unserialized_input)
+    c.sendall(size)
+
+    data = b''
+    size = c.recv(4096)
+    c.sendall(size)
+
+    while len(data)<int(size):
+        block = c.recv(4096)
+        if not block: break
+        data += block
+    if sys.version_info.major < 3:
+        unserialized_input = pickle.loads(data)
+    else:
+        unserialized_input = pickle.loads(data,encoding='bytes')
+
+    print(int(size))
+    print(unserialized_input.shape)
+    c.sendall(size)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 '''
 csvfile=open('yt-valid.csv', 'rt')
 

@@ -36,17 +36,24 @@ class Remote_precision(threading.Thread):
         else:
             self.result=detection.detach().cpu().numpy()
         self.info=info
+        self.socket=info.socket
     def run(self):
-        sock = socket.socket()
-        sock.connect((self.info.opt.master_addr, 8000))
-        serialized_data = pickle.dumps(self.image, protocol=2)
-        sock.sendall(serialized_data)
-        sock.close()
-        sock = socket.socket()
-        sock.connect((self.info.opt.master_addr, 8000))
-        serialized_data = pickle.dumps(self.result, protocol=2)
-        sock.sendall(serialized_data)
-        sock.close()
+
+        j = pickle.dumps(self.image, protocol=2)
+        self.socket.sendall(str(len(j)).encode())
+        data = self.socket.recv(1024)
+        self.socket.sendall(j)
+        data = self.socket.recv(1024)
+
+        j = pickle.dumps(self.result, protocol=2)
+
+        self.socket.sendall(str(len(j)).encode())
+
+        data = self.socket.recv(1024)
+
+        self.socket.sendall(j)
+        data = self.socket.recv(1024)
+
 
 class Oracle(threading.Thread):
 
