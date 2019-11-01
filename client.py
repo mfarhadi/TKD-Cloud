@@ -185,6 +185,8 @@ while True:
 
 
 
+
+
 '''
 csvfile=open('yt-valid.csv', 'rt')
 
