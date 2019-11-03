@@ -28,7 +28,7 @@ import threading
 
 class Remote_precision(threading.Thread):
 
-    def __init__(self, image,detection, info):
+    def __init__(self, image,detection,Tensor, info):
         threading.Thread.__init__(self)
         self.image=image
         if detection is None:
@@ -37,6 +37,8 @@ class Remote_precision(threading.Thread):
             self.result=detection.detach().cpu().numpy()
         self.info=info
         self.socket=info.socket
+        self.T1=Tensor[0].detach().cpu().numpy()
+        self.T2 = Tensor[1].detach().cpu().numpy()
     def run(self):
 
         j = pickle.dumps(self.image, protocol=2)
@@ -46,6 +48,24 @@ class Remote_precision(threading.Thread):
         data = self.socket.recv(1024)
 
         j = pickle.dumps(self.result, protocol=2)
+
+        self.socket.sendall(str(len(j)).encode())
+
+        data = self.socket.recv(1024)
+
+        self.socket.sendall(j)
+        data = self.socket.recv(1024)
+
+        j = pickle.dumps(self.T1, protocol=2)
+
+        self.socket.sendall(str(len(j)).encode())
+
+        data = self.socket.recv(1024)
+
+        self.socket.sendall(j)
+        data = self.socket.recv(1024)
+
+        j = pickle.dumps(self.T2, protocol=2)
 
         self.socket.sendall(str(len(j)).encode())
 
@@ -114,7 +134,7 @@ def Fast_detection(model, info):
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
     oracle_T=Oracle()
-    rem_prec = Remote_precision(info.frame, info.frame, info)
+    rem_prec = Remote_precision(info.frame, info.frame,info.frame[0], info)
     info.oracle.train().cuda()
 
     for path, img, im0s, vid_cap in dataset:
@@ -127,8 +147,9 @@ def Fast_detection(model, info):
       info.frame = info.frame.cuda()
       pred, _, feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
-      pred_TKD, _ = info.TKD(feature)
-      pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
+      pred_TKD, TKD_tensor = info.TKD(feature)
+      #pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
+
 
       #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
       #print(test_v[0])
@@ -144,7 +165,7 @@ def Fast_detection(model, info):
       detection=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
 
       if not rem_prec.is_alive() and info.precision:
-          rem_prec=Remote_precision(img,detection[0],info)
+          rem_prec=Remote_precision(info.frame.cpu().numpy(),detection[0],TKD_tensor,info)
           rem_prec.start()
 
       for i, det in enumerate(detection):  # detections per image

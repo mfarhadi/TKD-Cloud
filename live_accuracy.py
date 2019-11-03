@@ -54,7 +54,7 @@ def Argos(opt):
    s.bind((b'', 8000))
    s.listen(1)
    c, a = s.accept()
-
+   loss_f=nn.MSELoss().cuda()
    while True:
        data = b''
        size = c.recv(4096)
@@ -86,17 +86,95 @@ def Argos(opt):
 
        c.sendall(size)
 
-       frame = torch.from_numpy(img).unsqueeze_(0).cuda()
-       print(frame.shape)
-       pred, _ = o_model(frame)
+       data = b''
+       size = c.recv(4096)
+       c.sendall(size)
+
+       while len(data) < int(size):
+           block = c.recv(4096)
+           if not block: break
+           data += block
+       if sys.version_info.major < 3:
+           shallow_T1 = pickle.loads(data)
+       else:
+           shallow_T1 = pickle.loads(data, encoding='bytes')
+
+       c.sendall(size)
+
+
+
+       data = b''
+       size = c.recv(4096)
+       c.sendall(size)
+
+       while len(data) < int(size):
+           block = c.recv(4096)
+           if not block: break
+           data += block
+       if sys.version_info.major < 3:
+           shallow_T2 = pickle.loads(data)
+       else:
+           shallow_T2 = pickle.loads(data, encoding='bytes')
+
+       c.sendall(size)
+
+       shallow_T1 = torch.from_numpy(shallow_T1).cuda()
+       shallow_T2 = torch.from_numpy(shallow_T2).cuda()
+
+
+       frame = torch.from_numpy(img).cuda()
+
+       pred, deep_T = o_model(frame)
 
        deep_label= non_max_suppression(pred, opt.conf_thres, opt.nms_thres)
 
-       print(deep_label[0].shape,shallow_label.shape)
+       shallow_label=torch.from_numpy(shallow_label)
+       correct = [0] * len(shallow_label)
+
+       try:
+           if deep_label[0] is not None:
+
+               deep_label=deep_label[0].cpu()
+               nl = deep_label.shape[0]
+               detected = []
+               tcls_tensor =deep_label[:,6]
+               tcls = tcls_tensor.tolist() if nl else []
+               tbox = deep_label[:, 0:4]
 
 
+               for i, (*pbox, pconf, pcls_conf, pcls) in enumerate(shallow_label):
+
+                   # Break if all targets already located in image
+                   if len(detected) == nl:
+                       break
+
+                   # Continue if predicted class not among image classes
+                   if pcls.item() not in tcls:
+                       continue
+
+                   # Best iou, index between pred and targets
+
+                   m = (pcls == tcls_tensor).nonzero().view(-1)
+                   iou, bi = bbox_iou(pbox, tbox[m]).max(0)
+
+                   # If iou > threshold and class is correct mark as correct
+                   if iou > 0.4 and m[bi] not in detected:  # and pcls == tcls[bi]:
+                       correct[i] = 1
+                       detected.append(m[bi])
+           tp=sum(x > 0 for x in correct)
+           fp=len(correct)-tp
+           recall = tp / (nl + 1e-16)
+           precision = tp / (tp + fp)
+           f1=2*(recall*precision)/(precision+recall)
+           loss=0
 
 
+           loss += TKD_loss(shallow_T1, deep_T[0], loss_f)
+           loss += TKD_loss(shallow_T2, deep_T[1], loss_f)
+
+           print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', float(loss.cpu()))
+       except:
+           print('ignore frame')
    # Notify threads it's time to exit
    input()
    for student_temp in students:
@@ -118,7 +196,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
