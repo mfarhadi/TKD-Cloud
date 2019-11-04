@@ -27,7 +27,10 @@ def Argos(opt):
 
 
    ############### Network ##########################
-   network=True
+   if opt.Net_training:
+       network=True
+   else:
+       network=False
    if (opt.master_addr and network) or opt.Lacc:
         import torch.distributed as dist
         num_ranks_in_server = 1
@@ -74,6 +77,9 @@ def Argos(opt):
    #if s_weights.endswith('.pt'):  # pytorch format
    TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
 
+   if half:
+       TKD_decoder.half()
+
    ################ Teacher ##########################
 
    o_weights, half = opt.o_weights, opt.half
@@ -107,7 +113,7 @@ def Argos(opt):
       if opt.Lacc:
         student_temp.precision=True
         temp_s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        temp_s.connect((opt.master_addr, 8000))
+        temp_s.connect((opt.eval_addr, 8000))
         student_temp.socket=temp_s
       thread = student_detection(s_model,student_temp)
       thread.start()
@@ -140,12 +146,14 @@ if __name__ == '__main__':
     parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.2, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
-    parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
+    parser.add_argument('--half', action='store_true', default=False, help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
                         help="Send tensor (if not specified, will receive tensor)")
     parser.add_argument("--master_addr", type=str,default='localhost',
+                        help="IP address of master")
+    parser.add_argument("--eval_addr", type=str,default='localhost',
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")
@@ -156,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
     parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
+    parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
 
     opt = parser.parse_args()
 

@@ -141,7 +141,10 @@ def Fast_detection(model, info):
 
 
       info.frame[0, :, 0:img.shape[1], :] = torch.from_numpy(img)
-      info.frame = info.frame.cuda()
+      if info.opt.half:
+        info.frame = info.frame.half().cuda()
+      else:
+        info.frame = info.frame.cuda()
       pred, _, feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
       pred_TKD, TKD_tensor = info.TKD(feature)
