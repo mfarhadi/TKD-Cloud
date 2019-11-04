@@ -41,6 +41,7 @@ class Remote_precision(threading.Thread):
 
     def run(self):
 
+        print(self.info.loss.cpu())
         j = pickle.dumps(self.image, protocol=2)
         self.socket.sendall(str(len(j)).encode())
         data = self.socket.recv(1024)
@@ -56,8 +57,8 @@ class Remote_precision(threading.Thread):
         self.socket.sendall(j)
         data = self.socket.recv(1024)
 
-
-        j = pickle.dumps(self.info.loss.cpu().numpy(), protocol=2)
+        data=numpy.array([float(self.info.loss.cpu())])
+        j = pickle.dumps(data, protocol=2)
 
         self.socket.sendall(str(len(j)).encode())
 

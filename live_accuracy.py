@@ -114,7 +114,6 @@ def F1_score(opt):
 
 
        frame = torch.from_numpy(img).cuda()
-       print(frame.shape)
        pred, deep_T = o_model(frame)
 
        deep_label= non_max_suppression(pred, opt.conf_thres, opt.nms_thres)

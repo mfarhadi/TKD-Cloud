@@ -27,7 +27,7 @@ def Argos(opt):
 
 
    ############### Network ##########################
-   network=False
+   network=True
    if (opt.master_addr and network) or opt.Lacc:
         import torch.distributed as dist
         num_ranks_in_server = 1
