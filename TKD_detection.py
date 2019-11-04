@@ -210,7 +210,7 @@ def Fast_detection(model, info):
 
 
 def Retraining(frame, feature,info):
-
+    t1=time.time()
     if info.network:
         tensor = frame.cpu()
         send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
@@ -252,7 +252,13 @@ def Retraining(frame, feature,info):
         if info.threshold>10:
             info.threshold-=1
 
-
+    t2=time.time()
+    file = open('time' + '.txt', 'a')
+    if info.network:
+        file.write('\n' +'Network'+','+ str(t2-t1))
+    else:
+        file.write('\n' + 'Local' + ',' + str(t2 - t1))
+    file.close()
     info.loss=loss
     #print("TKD Loss",loss.data.cpu())
 
