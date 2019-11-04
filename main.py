@@ -164,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
     parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
-    parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
+    parser.add_argument('--Net_training', action='store_true', default=False, help='live accuracy over network')
 
     opt = parser.parse_args()
 
