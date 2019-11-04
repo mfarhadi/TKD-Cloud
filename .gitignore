@@ -8,3 +8,5 @@ weights/
 *.csv#
 
 matlab.mat
+
+F1_score.txt

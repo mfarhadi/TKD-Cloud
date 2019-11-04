@@ -58,6 +58,7 @@ def F1_score(opt):
    if half:
        o_model.half()
 
+
    print('listen for evaluation')
    s = socket.socket()
    s.bind((b'', 8000))
@@ -161,6 +162,9 @@ def F1_score(opt):
 
 
            print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', loss)
+           file = open('F1_score' + '.txt', 'a')
+           file.write('\n'+str(recall)+','+str(precision)+','+str(f1)+','+str(float(loss)))
+           file.close()
        except:
            print('ignore frame')
 
