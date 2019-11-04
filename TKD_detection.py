@@ -16,6 +16,7 @@ from classes import *
 import socket
 import numpy
 import time
+import random
 
 try:
     import cPickle as pickle
@@ -28,7 +29,7 @@ import threading
 
 class Remote_precision(threading.Thread):
 
-    def __init__(self, image,detection,Tensor, info):
+    def __init__(self, image,detection, info):
         threading.Thread.__init__(self)
         self.image=image
         if detection is None:
@@ -37,8 +38,7 @@ class Remote_precision(threading.Thread):
             self.result=detection.detach().cpu().numpy()
         self.info=info
         self.socket=info.socket
-        self.T1=Tensor[0].detach().cpu().numpy()
-        self.T2 = Tensor[1].detach().cpu().numpy()
+
     def run(self):
 
         j = pickle.dumps(self.image, protocol=2)
@@ -56,7 +56,8 @@ class Remote_precision(threading.Thread):
         self.socket.sendall(j)
         data = self.socket.recv(1024)
 
-        j = pickle.dumps(self.T1, protocol=2)
+
+        j = pickle.dumps(self.info.loss.cpu().numpy(), protocol=2)
 
         self.socket.sendall(str(len(j)).encode())
 
@@ -65,14 +66,9 @@ class Remote_precision(threading.Thread):
         self.socket.sendall(j)
         data = self.socket.recv(1024)
 
-        j = pickle.dumps(self.T2, protocol=2)
 
-        self.socket.sendall(str(len(j)).encode())
 
-        data = self.socket.recv(1024)
 
-        self.socket.sendall(j)
-        data = self.socket.recv(1024)
 
 
 class Oracle(threading.Thread):
@@ -124,7 +120,7 @@ def Fast_detection(model, info):
         dataset = LoadWebcam(info.source, img_size=info.opt.img_size, half=info.opt.half)
     else:
         save_img = True
-        print('salam')
+
         dataset = LoadImages(info.source, img_size=info.opt.img_size, half=info.opt.half)
 
     # Get classes and colors
@@ -134,7 +130,7 @@ def Fast_detection(model, info):
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
     oracle_T=Oracle()
-    rem_prec = Remote_precision(info.frame, info.frame,info.frame[0], info)
+    rem_prec = Remote_precision(info.frame, info.frame, info)
     info.oracle.train().cuda()
 
     for path, img, im0s, vid_cap in dataset:
@@ -148,24 +144,28 @@ def Fast_detection(model, info):
       pred, _, feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
       pred_TKD, TKD_tensor = info.TKD(feature)
-      #pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
+      pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
 
       #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
       #print(test_v[0])
-
-      if not oracle_T.is_alive():
+      rand_value=random.uniform(0,100)
+      if not oracle_T.is_alive() and rand_value<info.threshold:
           oracle_T = Oracle()
           oracle_T.frame=info.frame
           oracle_T.feature=[Variable(feature[0].data, requires_grad=False),Variable(feature[1].data, requires_grad=False)]
           oracle_T.info=info
           oracle_T.start()
+          print('selected', rand_value, info.threshold)
+      else:
+          if rand_value>info.threshold:
+              print('Not selected',rand_value,info.threshold)
 
       #oracle_T.join()
       detection=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
 
       if not rem_prec.is_alive() and info.precision:
-          rem_prec=Remote_precision(info.frame.cpu().numpy(),detection[0],TKD_tensor,info)
+          rem_prec=Remote_precision(info.frame.cpu().numpy(),detection[0],info)
           rem_prec.start()
 
       for i, det in enumerate(detection):  # detections per image
@@ -216,6 +216,11 @@ def Retraining(frame, feature,info):
             receive_tensor_helper(info.dist, temp_w, 1 - info.opt.rank, 0, 0,
                                   1, info.opt.intra_server_broadcast)
             parm[:] = temp_w.cuda()
+
+        loss = torch.zeros(([1])).cpu()
+        receive_tensor_helper(info.dist, loss, 1 - info.opt.rank, 0, 0,
+                              1, info.opt.intra_server_broadcast)
+
     else:
         T_out = info.oracle(frame)
         richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
@@ -231,11 +236,21 @@ def Retraining(frame, feature,info):
 
             for i in range(2):
 
-                loss += TKD_loss(p[i],richOutput[i],info.loss)
+                loss += TKD_loss(p[i],richOutput[i],info.loss_F)
             loss.backward(retain_graph=True)
             info.optimizer.step()
+    if float(loss.data.cpu())<float(info.loss.data.cpu())-0.1 or float(loss.data.cpu())> float(info.loss.data.cpu()) +1:
+        if info.threshold<50:
+            info.threshold*=2
+        elif info.threshold<90:
+            info.threshold += 10
+    else:
+        if info.threshold>10:
+            info.threshold-=1
 
-        print("TKD Loss",loss.data.cpu())
+
+    info.loss=loss
+    #print("TKD Loss",loss.data.cpu())
 
 
 
@@ -255,6 +270,7 @@ def server_Retraining(info):
     os.environ['MASTER_ADDR'] = args.master_addr
     os.environ['MASTER_PORT'] = str(args.master_port)
     world_size = 2
+    print('start')
     dist.init_process_group(args.backend, rank=args.rank, world_size=world_size)
     print('initied')
     info.oracle.train()
@@ -289,8 +305,9 @@ def server_Retraining(info):
         for parm in info.TKD.parameters():
             send_tensor_helper(dist, parm.cpu(), 1 - info.opt.rank, 0, 0,
                                1, info.opt.intra_server_broadcast)
-
-        print("TKD Loss", loss.data.cpu())
+        send_tensor_helper(dist, loss.cpu(), 1 - info.opt.rank, 0, 0,
+                           1, info.opt.intra_server_broadcast)
+        #print("TKD Loss", loss.data.cpu())
 
 
 

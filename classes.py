@@ -33,12 +33,14 @@ class student():
         self.opt = opt
         self.device=device
         self.exitFlag=False
-        self.loss=nn.MSELoss().cuda()
+        self.loss_F=nn.MSELoss().cuda()
         self.dist=dist
         self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
         self.network=False
         self.precision=False
         self.socket=None
+        self.loss=torch.tensor([99999])
+        self.threshold=100
 
 
 class Remote_student():

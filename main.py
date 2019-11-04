@@ -28,7 +28,7 @@ def Argos(opt):
 
    ############### Network ##########################
    network=False
-   if opt.master_addr and network:
+   if (opt.master_addr and network) or opt.Lacc:
         import torch.distributed as dist
         num_ranks_in_server = 1
         if opt.intra_server_broadcast:
@@ -39,6 +39,7 @@ def Argos(opt):
         os.environ['MASTER_ADDR'] = opt.master_addr
         os.environ['MASTER_PORT'] = str(opt.master_port)
         world_size = 2
+
         dist.init_process_group(opt.backend, rank=opt.rank, world_size=world_size)
         print('Network initied')
    else:
@@ -144,7 +145,7 @@ if __name__ == '__main__':
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
                         help="Send tensor (if not specified, will receive tensor)")
-    parser.add_argument("--master_addr", type=str,default='127.0.0.1',
+    parser.add_argument("--master_addr", type=str,default='localhost',
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")

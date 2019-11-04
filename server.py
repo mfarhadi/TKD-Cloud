@@ -20,6 +20,7 @@ import threading
 import time
 import torch
 import torch.distributed as dist
+from live_accuracy import *
 
 def Argos(opt):
 
@@ -83,6 +84,10 @@ def Argos(opt):
    threadID = 1
    Remote_students=[]
 
+   acc=accuracy_live(opt)
+   acc.start()
+
+
    # Create new threads
    for tName in threadList:
       student_temp=Remote_student(threadID,TKD_decoder,s_model,o_model,opt,device)
@@ -90,6 +95,7 @@ def Argos(opt):
       thread.start()
       Remote_students.append(thread)
       threadID += 1
+
 
 
 
@@ -114,7 +120,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
@@ -122,13 +128,13 @@ if __name__ == '__main__':
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
                         help="Send tensor (if not specified, will receive tensor)")
-    parser.add_argument("--master_addr", type=str,default='10.218.110.18',
+    parser.add_argument("--master_addr", type=str,default='localhost',
                         help="IP address of master")
     parser.add_argument("--use_helper_threads", action='store_true',
                         help="Use multiple threads")
     parser.add_argument("--rank", type=int, default=0,
                         help="Rank of current worker")
-    parser.add_argument('-p', "--master_port", default=12344,
+    parser.add_argument('-p', "--master_port", default=12345,
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
