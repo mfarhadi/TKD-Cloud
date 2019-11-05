@@ -57,6 +57,8 @@ def Argos(opt):
 
    #if s_weights.endswith('.pt'):  # pytorch format
    TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
+   if half:
+       TKD_decoder.half()
 
    ################ Teacher ##########################
 
@@ -123,7 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
-    parser.add_argument('--half', action='store_true', help='half precision FP16 inference')
+    parser.add_argument('--half', action='store_true', default=True, help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',

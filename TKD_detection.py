@@ -40,7 +40,7 @@ class Remote_precision(threading.Thread):
         self.socket=info.socket
 
     def run(self):
-
+        #print(self.image.type(),self.result.type())
         print(self.info.loss.cpu())
         j = pickle.dumps(self.image, protocol=2)
         self.socket.sendall(str(len(j)).encode())
@@ -260,7 +260,7 @@ def Retraining(frame, feature,info):
         file.write('\n' + 'Local' + ',' + str(t2 - t1))
     file.close()
     info.loss=loss
-    #print("TKD Loss",loss.data.cpu())
+    print("TKD Loss",loss.data.cpu())
 
 
 
@@ -292,7 +292,8 @@ def server_Retraining(info):
         receive_tensor_helper(dist,tensor, 1-args.rank, 0, 0,
                              1, args.intra_server_broadcast)
         tensor=tensor.cuda()
-
+        if info.opt.half:
+            tensor=tensor.half()
         info.TKD.img_size = tensor.shape[-2:]
         T_out = info.oracle(tensor)
 

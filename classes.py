@@ -35,7 +35,10 @@ class student():
         self.exitFlag=False
         self.loss_F=nn.MSELoss().cuda()
         self.dist=dist
-        self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
+        if opt.half:
+            self.optimizer = optim.Adam(TKD.parameters(), lr=0.001,eps=1e-4 )
+        else:
+            self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
         self.network=False
         self.precision=False
         self.socket=None
@@ -54,8 +57,10 @@ class Remote_student():
         self.device=device
         self.exitFlag=False
         self.loss=nn.MSELoss().cuda()
-        self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
-
+        if opt.half:
+            self.optimizer = optim.Adam(TKD.parameters(), lr=0.0005, eps=1e-5)
+        else:
+            self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
 
 class student_detection(threading.Thread):
 

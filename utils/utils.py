@@ -472,7 +472,10 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.5):
     Returns detections with shape:
         (x1, y1, x2, y2, object_conf, class_conf, class)
     """
-
+    #prediction=prediction.half()
+    #print('jamale mehdi',prediction.type())
+    prediction=prediction.type(torch.cuda.FloatTensor)
+    #print('jamale mehdi2', prediction.type())
     min_wh = 2  # (pixels) minimum box width and height
 
     output = [None] * len(prediction)
@@ -511,6 +514,7 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.5):
         # pred[:, 4] *= class_conf  # improves mAP from 0.549 to 0.551
 
         # Detections ordered as (x1y1x2y2, obj_conf, class_conf, class_pred)
+
         pred = torch.cat((pred[:, :5], class_conf.unsqueeze(1), class_pred), 1)
 
         # Get detections sorted by decreasing confidence scores

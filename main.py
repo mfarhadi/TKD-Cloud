@@ -146,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.2, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
-    parser.add_argument('--half', action='store_true', default=False, help='half precision FP16 inference')
+    parser.add_argument('--half', action='store_true', default=True, help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
     parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
-    parser.add_argument('--Net_training', action='store_true', default=False, help='live accuracy over network')
+    parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
 
     opt = parser.parse_args()
 

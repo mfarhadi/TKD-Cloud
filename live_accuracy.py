@@ -55,8 +55,8 @@ def F1_score(opt):
 
    # Half precision
    half = half and device.type != 'cpu'  # half precision only supported on CUDA
-   if half:
-       o_model.half()
+   #if half:
+   #    o_model.half()
 
 
    print('listen for evaluation')
@@ -114,7 +114,7 @@ def F1_score(opt):
        c.sendall(size)
 
 
-       frame = torch.from_numpy(img).cuda()
+       frame = torch.from_numpy(img).type(torch.cuda.FloatTensor).cuda()
        pred, deep_T = o_model(frame)
 
        deep_label= non_max_suppression(pred, opt.conf_thres, opt.nms_thres)
@@ -161,7 +161,7 @@ def F1_score(opt):
 
 
 
-           print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', loss)
+           #print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', loss)
            file = open('F1_score' + '.txt', 'a')
            file.write('\n'+str(recall)+','+str(precision)+','+str(f1)+','+str(float(loss)))
            file.close()
