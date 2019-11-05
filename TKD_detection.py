@@ -157,7 +157,9 @@ def Fast_detection(model, info):
       if not oracle_T.is_alive() and rand_value<info.threshold:
           oracle_T = Oracle()
           oracle_T.frame=info.frame
-          oracle_T.feature=[Variable(feature[0].data, requires_grad=False),Variable(feature[1].data, requires_grad=False)]
+          oracle_T.feature=[]
+          for i3 in range(len(feature)):
+              oracle_T.feature.append(Variable(feature[i3].data, requires_grad=False))
           oracle_T.info=info
           oracle_T.start()
           print('selected', rand_value, info.threshold)
@@ -235,7 +237,10 @@ def Retraining(frame, feature,info):
 
     else:
         T_out = info.oracle(frame)
-        richOutput=[Variable(T_out[0].data, requires_grad=False),Variable(T_out[1].data, requires_grad=False)]
+
+        richOutput=[]
+        for i3 in range(len(T_out)):
+            richOutput.append(Variable(T_out[i3].data, requires_grad=False))
 
 
         for j in range(3):
@@ -246,7 +251,7 @@ def Retraining(frame, feature,info):
 
             loss = 0
 
-            for i in range(2):
+            for i in range(len(p)):
 
                 loss += TKD_loss(p[i],richOutput[i],info.loss_F)
             loss.backward(retain_graph=True)
@@ -314,8 +319,14 @@ def server_Retraining(info):
         T_out = info.oracle(tensor)
 
         pred, _, feature = info.model(tensor)
-        richOutput = [Variable(T_out[0].data, requires_grad=False), Variable(T_out[1].data, requires_grad=False)]
-        feature = [Variable(feature[0].data, requires_grad=False), Variable(feature[1].data, requires_grad=False)]
+
+        richOutput=[]
+        for i3 in range(len(T_out)):
+            richOutput.append(Variable(T_out[i3].data, requires_grad=False))
+
+        for i3 in range(len(feature)):
+            feature[i3]=Variable(feature[i3].data, requires_grad=False)
+
 
         for j in range(3):
 
@@ -323,7 +334,7 @@ def server_Retraining(info):
             S_out, p = info.TKD(feature)
             loss = 0
 
-            for i in range(2):
+            for i in range(len(p)):
 
                 loss += TKD_loss(p[i], richOutput[i], info.loss)
 

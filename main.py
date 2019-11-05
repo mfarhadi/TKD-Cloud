@@ -55,7 +55,7 @@ def Argos(opt):
    # Initialize model
    s_model = Darknet(opt.s_cfg, img_size)
 
-   s_model.feture_index=[8,12]
+   s_model.feture_index=[6,8,12]
    # Load weights
    if s_weights.endswith('.pt'):  # pytorch format
        s_model.load_state_dict(torch.load(s_weights, map_location=device)['model'])
@@ -163,8 +163,8 @@ if __name__ == '__main__':
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
-    parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
-    parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
+    parser.add_argument('--Lacc', action='store_true', default=False, help='live accuracy over network')
+    parser.add_argument('--Net_training', action='store_true', default=False, help='live accuracy over network')
 
     opt = parser.parse_args()
 

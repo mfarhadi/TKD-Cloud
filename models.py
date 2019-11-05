@@ -105,8 +105,9 @@ def create_modules(module_defs, img_size, arc):
 
         elif mdef['type'] == 'list_input':
             in_filters=[int(x) for x in mdef['filters'].split(',')]
-            output_filters[0]=in_filters[0]
-            filters=in_filters[1]
+            for i1 in range(len(in_filters)-1):
+                output_filters.append(in_filters[i1])
+            filters=in_filters[-1]
         else:
             print('Warning: Unrecognized Layer Type: ' + mdef['type'])
 
@@ -239,8 +240,9 @@ class Darknet(nn.Module):
 
 
             elif mtype == 'list_input':
-                layer_outputs.append(x[0])
-                x=x[1]
+                for i2 in range(len(x)-1):
+                    layer_outputs.append(x[i2])
+                x=x[-1]
             elif mtype == 'route':
                 layers = [int(x) for x in mdef['layers'].split(',')]
                 if len(layers) == 1:
