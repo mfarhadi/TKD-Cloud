@@ -213,6 +213,13 @@ def Retraining(frame, feature,info):
     t1=time.time()
     if info.network:
         tensor = frame.cpu()
+        if info.opt.half:
+            send_tensor_helper(info.dist,torch.ones(([1])).cpu(), 1 - info.opt.rank, 0, 0,
+                           1, info.opt.intra_server_broadcast)
+        else:
+            send_tensor_helper(info.dist,torch.zeros(([1])).cpu(), 1 - info.opt.rank, 0, 0,
+                           1, info.opt.intra_server_broadcast)
+
         send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
                            1, info.opt.intra_server_broadcast)
         for parm in info.TKD.parameters():
@@ -222,6 +229,7 @@ def Retraining(frame, feature,info):
             parm[:] = temp_w.cuda()
 
         loss = torch.zeros(([1])).cpu()
+
         receive_tensor_helper(info.dist, loss, 1 - info.opt.rank, 0, 0,
                               1, info.opt.intra_server_broadcast)
 
@@ -287,11 +295,20 @@ def server_Retraining(info):
     info.TKD=info.TKD.cuda().eval()
     while not info.exitFlag:
 
+        half=torch.ones(([1])).cpu()
+
+        receive_tensor_helper(dist,half, 1-args.rank, 0, 0,
+                             1, args.intra_server_broadcast)
+
         tensor = torch.zeros(([1, 3, 416, 416])).cpu()
+
+        if half==1:
+            print('half hastesh')
+            tensor=tensor.half()
 
         receive_tensor_helper(dist,tensor, 1-args.rank, 0, 0,
                              1, args.intra_server_broadcast)
-        tensor=tensor.cuda()
+        tensor=tensor.cuda().type(torch.cuda.FloatTensor)
         if info.opt.half:
             tensor=tensor.half()
         info.TKD.img_size = tensor.shape[-2:]
@@ -310,12 +327,17 @@ def server_Retraining(info):
             for i in range(2):
 
                 loss += TKD_loss(p[i], richOutput[i], info.loss)
+
             loss.backward(retain_graph=True)
             info.optimizer.step()
 
         for parm in info.TKD.parameters():
-            send_tensor_helper(dist, parm.cpu(), 1 - info.opt.rank, 0, 0,
-                               1, info.opt.intra_server_broadcast)
+            if half == 1:
+                send_tensor_helper(dist, parm.cpu().half(), 1 - info.opt.rank, 0, 0,
+                                   1, info.opt.intra_server_broadcast)
+            else:
+                send_tensor_helper(dist, parm.cpu(), 1 - info.opt.rank, 0, 0,
+                                   1, info.opt.intra_server_broadcast)
         send_tensor_helper(dist, loss.cpu(), 1 - info.opt.rank, 0, 0,
                            1, info.opt.intra_server_broadcast)
         #print("TKD Loss", loss.data.cpu())

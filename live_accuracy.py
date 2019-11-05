@@ -161,7 +161,7 @@ def F1_score(opt):
 
 
 
-           #print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', loss)
+           print('Recall:',recall,'Precision:',precision,'F1 score:',f1, 'Loss:', loss)
            file = open('F1_score' + '.txt', 'a')
            file.write('\n'+str(recall)+','+str(precision)+','+str(f1)+','+str(float(loss)))
            file.close()

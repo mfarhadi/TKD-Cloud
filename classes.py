@@ -58,7 +58,7 @@ class Remote_student():
         self.exitFlag=False
         self.loss=nn.MSELoss().cuda()
         if opt.half:
-            self.optimizer = optim.Adam(TKD.parameters(), lr=0.0005, eps=1e-5)
+            self.optimizer = optim.Adam(TKD.parameters(), lr=0.001, eps=1e-4)
         else:
             self.optimizer = optim.Adam(TKD.parameters(), lr=0.001)
 
@@ -91,7 +91,7 @@ class Remote_precision(threading.Thread):
         self.result=detection.cpu().numpy()
         self.info=info
     def run(self):
-        print("ya ali")
+
         sock = socket.socket()
         sock.connect((self.info.opt.master_addr, 8000))
         serialized_data = pickle.dumps(self.image, protocol=2)
