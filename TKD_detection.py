@@ -303,7 +303,6 @@ def server_Retraining(info):
         tensor = torch.zeros(([1, 3, 416, 416])).cpu()
 
         if half==1:
-            print('half hastesh')
             tensor=tensor.half()
 
         receive_tensor_helper(dist,tensor, 1-args.rank, 0, 0,
