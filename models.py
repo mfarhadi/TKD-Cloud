@@ -235,7 +235,6 @@ class Darknet(nn.Module):
             mtype = mdef['type']
 
             if mtype in ['convolutional', 'upsample', 'maxpool']:
-
                 x = module(x)
 
 

@@ -75,7 +75,7 @@ def Argos(opt):
 
 
    #if s_weights.endswith('.pt'):  # pytorch format
-   TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
+   #TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
 
    if half:
        TKD_decoder.half()
