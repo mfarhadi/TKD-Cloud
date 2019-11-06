@@ -155,6 +155,8 @@ def Fast_detection(model, info):
       inf_file = open('inference_time' + '.txt', 'a')
       if info.network:
           inf_file.write('\n' + 'Network' + ',' + str(inf_t2 - inf_t1))
+      else:
+          inf_file.write('\n' + 'Local' + ',' + str(inf_t2 - inf_t1))
       inf_file.close()
 
       #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
