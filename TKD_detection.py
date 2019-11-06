@@ -12,6 +12,7 @@ from loss_preparation import TKD_loss
 import torch.distributed as dist
 import os
 from classes import *
+from motion_detection import *
 
 import socket
 import numpy
@@ -134,7 +135,17 @@ def Fast_detection(model, info):
     rem_prec = Remote_precision(info.frame, info.frame, info)
     info.oracle.train().cuda()
 
+    m_info=motion_info()
+    m_detect=motion_detection(info.frame,m_info)
+
     for path, img, im0s, vid_cap in dataset:
+
+      #motion detection
+
+      if not m_detect.is_alive():
+          m_detect = motion_detection(im0s, m_info)
+          m_detect.start()
+
 
       info.collecting=True
       # Get detections
@@ -161,19 +172,23 @@ def Fast_detection(model, info):
 
       #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
       #print(test_v[0])
-      rand_value=random.uniform(0,100)
-      if not oracle_T.is_alive() and rand_value<info.threshold:
-          oracle_T = Oracle()
-          oracle_T.frame=info.frame
-          oracle_T.feature=[]
-          for i3 in range(len(feature)):
-              oracle_T.feature.append(Variable(feature[i3].data, requires_grad=False))
-          oracle_T.info=info
-          oracle_T.start()
-          print('selected', rand_value, info.threshold)
-      else:
-          if rand_value>info.threshold:
-              print('Not selected',rand_value,info.threshold)
+      if m_info.motion_status or info.threshold>10:
+          rand_value=random.uniform(0,100)
+          if not oracle_T.is_alive() and rand_value<info.threshold:
+
+              m_info.static_back=m_info.gray
+
+              oracle_T = Oracle()
+              oracle_T.frame=info.frame
+              oracle_T.feature=[]
+              for i3 in range(len(feature)):
+                  oracle_T.feature.append(Variable(feature[i3].data, requires_grad=False))
+              oracle_T.info=info
+              oracle_T.start()
+              print('selected', rand_value, info.threshold)
+          else:
+              if rand_value>info.threshold:
+                  print('Not selected',rand_value,info.threshold)
 
       #oracle_T.join()
       detection=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)

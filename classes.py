@@ -6,6 +6,7 @@ import torch.optim as optim
 import socket
 import numpy
 import time
+import cv2
 
 try:
     import cPickle as pickle
@@ -101,6 +102,11 @@ class Remote_precision(threading.Thread):
         serialized_data = pickle.dumps(self.result, protocol=2)
         sock.sendall(serialized_data)
         sock.close()
+
+
+
+
+
 
 
 

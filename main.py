@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.2, help='iou threshold for non-maximum suppression')
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
-    parser.add_argument('--half', action='store_true', default=False, help='half precision FP16 inference')
+    parser.add_argument('--half', action='store_true', default=True, help='half precision FP16 inference')
     parser.add_argument("--backend", type=str, default='gloo',
                         help="Backend")
     parser.add_argument('-s', "--send", action='store_true',
@@ -169,6 +169,7 @@ if __name__ == '__main__':
                         help="Broadcast within a server")
     parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
     parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
+    parser.add_argument('--dynamic', action='store_true', default=True, help='Dynamic selection training over network or local')
 
     opt = parser.parse_args()
 

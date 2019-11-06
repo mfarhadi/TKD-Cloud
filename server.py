@@ -145,6 +145,7 @@ if __name__ == '__main__':
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
+
     opt = parser.parse_args()
 
 
