@@ -262,8 +262,9 @@ def Retraining(frame, feature,info):
             for i in range(len(p)):
 
                 loss += TKD_loss(p[i],richOutput[i],info.loss_F)
-            loss.backward(retain_graph=True)
-            info.optimizer.step()
+            if loss > 0.3:
+                loss.backward(retain_graph=True)
+                info.optimizer.step()
     if float(loss.data.cpu())<float(info.loss.data.cpu())-0.1 or float(loss.data.cpu())> float(info.loss.data.cpu()) +1:
         if info.threshold<50:
             info.threshold*=2
@@ -345,9 +346,9 @@ def server_Retraining(info):
             for i in range(len(p)):
 
                 loss += TKD_loss(p[i], richOutput[i], info.loss)
-
-            loss.backward(retain_graph=True)
-            info.optimizer.step()
+            if loss>0.3:
+                loss.backward(retain_graph=True)
+                info.optimizer.step()
 
         for parm in info.TKD.parameters():
             if half == 1:
