@@ -12,3 +12,5 @@ matlab.mat
 F1_score.txt
 
 time.txt
+
+inference_time.txt

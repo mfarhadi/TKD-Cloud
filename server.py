@@ -52,11 +52,13 @@ def Argos(opt):
    if half:
        s_model.half()
 
-   TKD_decoder = Darknet('cfg/TKD_decoder.cfg', img_size)
+   TKD_decoder = Darknet(opt.T_cfg, img_size)
 
 
-   #if s_weights.endswith('.pt'):  # pytorch format
-   TKD_decoder.load_state_dict(torch.load('weights/TKD.pt', map_location=device)['model'])
+   try:
+       TKD_decoder.load_state_dict(torch.load(opt.T_weights, map_location=device)['model'])
+   except:
+       print('No TKD Decoder weights')
    if half:
        TKD_decoder.half()
 
@@ -114,11 +116,13 @@ def Argos(opt):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--s-cfg', type=str, default='cfg/yolov3-tiny.cfg', help='cfg file path')
-    parser.add_argument('--o-cfg', type=str, default='cfg/yolov3.cfg', help='cfg file path')
+    parser.add_argument('--s-cfg', type=str, default='cfg/yolov3-tiny.cfg', help='tiny cfg file path')
+    parser.add_argument('--o-cfg', type=str, default='cfg/yolov3.cfg', help='Oracle cfg file path')
+    parser.add_argument('--T-cfg', type=str, default='cfg/TKD_decoder_3out.cfg', help='TKD cfg file path')
     parser.add_argument('--data', type=str, default='data/coco.data', help='coco.data file path')
-    parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='path to weights file')
-    parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='path to weights file')
+    parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='tiny path to weights file')
+    parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='Oracle path to weights file')
+    parser.add_argument('--T-weights', type=str, default='weights/TKD.pt', help='TKD path to weights file')
     parser.add_argument('--source', type=str, default='0', help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')

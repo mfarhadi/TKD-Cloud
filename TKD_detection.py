@@ -145,11 +145,17 @@ def Fast_detection(model, info):
         info.frame = info.frame.half().cuda()
       else:
         info.frame = info.frame.cuda()
+      inf_t1 = time.time()
       pred, _, feature = model(info.frame)
       info.TKD.img_size = info.frame.shape[-2:]
       pred_TKD, TKD_tensor = info.TKD(feature)
       pred = torch.cat((pred, pred_TKD), 1)  # concat tkd and general decoder
 
+      inf_t2 = time.time()
+      inf_file = open('inference_time' + '.txt', 'a')
+      if info.network:
+          inf_file.write('\n' + 'Network' + ',' + str(inf_t2 - inf_t1))
+      inf_file.close()
 
       #test_v=non_max_suppression(pred, info.opt.conf_thres, info.opt.nms_thres)
       #print(test_v[0])
