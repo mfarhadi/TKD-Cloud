@@ -84,6 +84,14 @@ class Remote_student_update(threading.Thread):
         server_Retraining(self.student)
         print("Exiting student" + str(self.student.threadID))
 
+class frame_listen(threading.Thread):
+
+    def __init__(self, student):
+        threading.Thread.__init__(self)
+        self.student=student
+    def run(self):
+
+
 class Remote_precision(threading.Thread):
 
     def __init__(self, image,detection, info):

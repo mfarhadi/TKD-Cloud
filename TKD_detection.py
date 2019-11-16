@@ -85,6 +85,41 @@ class Oracle(threading.Thread):
         Retraining(self.frame, self.feature, self.info)
 
 
+class Oracle_listener(threading.Thread):
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.frame=None
+        self.feature=None
+        self.info=None
+    def run(self):
+        while True:
+            print('ready to get results')
+            for parm in self.info.TKD.parameters():
+                temp_w = parm.cpu()
+                receive_tensor_helper(self.info.dist, temp_w, 1 - self.info.opt.rank, 0, 0,
+                                      1, self.info.opt.intra_server_broadcast)
+                parm[:] = temp_w.cuda()
+
+            loss = torch.zeros(([1])).cpu()
+
+            receive_tensor_helper(self.info.dist, loss, 1 - self.info.opt.rank, 0, 0,
+                                  1, self.info.opt.intra_server_broadcast)
+
+            if float(loss.data.cpu()) < float(self.info.loss.data.cpu()) - 0.1 or float(loss.data.cpu()) > float(
+                    self.info.loss.data.cpu()) + 1:
+                if self.info.threshold < 50:
+                    self.info.threshold *= 2
+                elif self.info.threshold < 90:
+                    self.info.threshold += 10
+            else:
+                if self.info.threshold > 10:
+                    self.info.threshold -= 1
+
+            self.info.loss = loss
+            print("TKD Loss", loss.data.cpu())
+
+
 
 def receive_tensor_helper(dist,tensor, src_rank, group, tag, num_iterations,
                           intra_server_broadcast):
@@ -132,6 +167,12 @@ def Fast_detection(model, info):
     # Run inference
     info.frame = torch.zeros([1, 3, info.opt.img_size, info.opt.img_size])
     oracle_T=Oracle()
+
+    if info.opt.ctraining and info.network:
+        oracle_re=Oracle_listener()
+        oracle_re.info=info
+        oracle_re.start()
+
     rem_prec = Remote_precision(info.frame, info.frame, info)
     info.oracle.train().cuda()
 
@@ -281,19 +322,23 @@ def Retraining(frame, feature,info):
             if loss > 0.3:
                 loss.backward(retain_graph=True)
                 info.optimizer.step()
-    if float(loss.data.cpu())<float(info.loss.data.cpu())-0.1 or float(loss.data.cpu())> float(info.loss.data.cpu()) +1:
-        if info.threshold<50:
-            info.threshold*=2
-        elif info.threshold<90:
-            info.threshold += 10
-    else:
-        if info.threshold>10:
-            info.threshold-=1
+
 
     t2=time.time()
     if info.network and info.opt.ctraining:
         file = open('sendimage_time' + '.txt', 'a')
     else:
+
+        if float(loss.data.cpu()) < float(info.loss.data.cpu()) - 0.1 or float(loss.data.cpu()) > float(
+                info.loss.data.cpu()) + 1:
+            if info.threshold < 50:
+                info.threshold *= 2
+            elif info.threshold < 90:
+                info.threshold += 10
+        else:
+            if info.threshold > 10:
+                info.threshold -= 1
+
         info.loss = loss
         print("TKD Loss", loss.data.cpu())
         file = open('time' + '.txt', 'a')
@@ -328,6 +373,7 @@ def server_Retraining(info):
     print('initied')
     info.oracle.train()
     info.TKD=info.TKD.cuda().eval()
+
     while not info.exitFlag:
 
         half=torch.ones(([1])).cpu()
