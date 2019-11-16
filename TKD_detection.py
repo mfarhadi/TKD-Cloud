@@ -28,6 +28,55 @@ except ImportError:
 
 import threading
 
+class frame_listen(threading.Thread):
+
+    def __init__(self, student):
+        threading.Thread.__init__(self)
+        self.student=student
+    def run(self):
+        self.student.frame=[]
+        args = self.student.opt
+        while True:
+            half = torch.ones(([1])).cpu()
+
+            receive_tensor_helper(dist, half, 1 - args.rank, 0, 0,
+                                  1, args.intra_server_broadcast)
+
+            tensor = torch.zeros(([1, 3, 416, 416])).cpu()
+            self.student.opt.half=half
+            if half == 1:
+                tensor = tensor.half()
+
+            receive_tensor_helper(dist, tensor, 1 - args.rank, 0, 0,
+                                  1, args.intra_server_broadcast)
+            tensor = tensor.type(torch.FloatTensor)
+            self.student.frame.append(tensor)
+
+
+            self.student.TKD.img_size = tensor.shape[-2:]
+            if len(self.student.frame)>9:
+                del self.student.frame[0]
+                time.sleep(0.01)
+
+class weights_send(threading.Thread):
+
+    def __init__(self, student,loss):
+        threading.Thread.__init__(self)
+        self.student=student
+        self.loss=loss
+    def run(self):
+
+        for parm in self.student.TKD.parameters():
+            if self.student.opt.half == 1:
+                send_tensor_helper(dist, parm.cpu().half(), 1 - self.student.opt.rank, 0, 0,
+                                   1, self.student.opt.intra_server_broadcast)
+            else:
+                send_tensor_helper(dist, parm.cpu(), 1 - self.student.opt.rank, 0, 0,
+                                   1, self.student.opt.intra_server_broadcast)
+
+        send_tensor_helper(dist, self.loss.cpu(), 1 - self.student.opt.rank, 0, 0,
+                           1, self.student.opt.intra_server_broadcast)
+
 class Remote_precision(threading.Thread):
 
     def __init__(self, image,detection, info):
@@ -373,9 +422,11 @@ def server_Retraining(info):
     print('initied')
     info.oracle.train()
     info.TKD=info.TKD.cuda().eval()
-
+    reciver=frame_listen(info)
+    reciver.start()
+    w_sender=weights_send(1,1)
     while not info.exitFlag:
-
+        '''
         half=torch.ones(([1])).cpu()
 
         receive_tensor_helper(dist,half, 1-args.rank, 0, 0,
@@ -391,42 +442,50 @@ def server_Retraining(info):
         tensor=tensor.cuda().type(torch.cuda.FloatTensor)
         if info.opt.half:
             tensor=tensor.half()
+        
         info.TKD.img_size = tensor.shape[-2:]
-        T_out = info.oracle(tensor)
+        '''
+        half=info.opt.half
+        if info.frame:
 
-        pred, _, feature = info.model(tensor)
+            tensor=torch.cat(info.frame, 0)
+            del info.frame[:]
+            tensor=tensor.cuda()
+            T_out = info.oracle(tensor)
 
-        richOutput=[]
-        for i3 in range(len(T_out)):
-            richOutput.append(Variable(T_out[i3].data, requires_grad=False))
+            pred, _, feature = info.model(tensor)
+            del tensor
+            torch.cuda.empty_cache()
+            richOutput=[]
+            for i3 in range(len(T_out)):
+                richOutput.append(Variable(T_out[i3].data, requires_grad=False))
 
-        for i3 in range(len(feature)):
-            feature[i3]=Variable(feature[i3].data, requires_grad=False)
+            for i3 in range(len(feature)):
+                feature[i3]=Variable(feature[i3].data, requires_grad=False)
 
 
-        for j in range(3):
+            for j in range(3):
 
-            info.optimizer.zero_grad()
-            S_out, p = info.TKD(feature)
-            loss = 0
+                info.optimizer.zero_grad()
+                S_out, p = info.TKD(feature)
+                loss = 0
 
-            for i in range(len(p)):
+                for i in range(len(p)):
 
-                loss += TKD_loss(p[i], richOutput[i], info.loss)
-            if loss>0.3:
-                loss.backward(retain_graph=True)
-                info.optimizer.step()
+                    loss += TKD_loss(p[i], richOutput[i], info.loss)
 
-        for parm in info.TKD.parameters():
-            if half == 1:
-                send_tensor_helper(dist, parm.cpu().half(), 1 - info.opt.rank, 0, 0,
-                                   1, info.opt.intra_server_broadcast)
-            else:
-                send_tensor_helper(dist, parm.cpu(), 1 - info.opt.rank, 0, 0,
-                                   1, info.opt.intra_server_broadcast)
-        send_tensor_helper(dist, loss.cpu(), 1 - info.opt.rank, 0, 0,
-                           1, info.opt.intra_server_broadcast)
-        #print("TKD Loss", loss.data.cpu())
+                if loss>0.3:
+                    loss.backward(retain_graph=True)
+                    info.optimizer.step()
+            if not w_sender.is_alive():
+                w_sender=weights_send(info,loss)
+                w_sender.run()
+
+
+
+            #print("TKD Loss", loss.data.cpu())
+        else:
+            time.sleep(0.005)
 
 
 

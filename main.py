@@ -144,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument('--s-weights', type=str, default='weights/yolov3-tiny.weights', help='tiny path to weights file')
     parser.add_argument('--o-weights', type=str, default='weights/yolov3.weights', help='Oracle path to weights file')
     parser.add_argument('--T-weights', type=str, default='weights/TKD.pt', help='TKD path to weights file')
-    parser.add_argument('--source', type=str, default=['0'], help='source')  # input file/folder, 0 for webcam
+    parser.add_argument('--source', type=str, default=['1.avi'], help='source')  # input file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
@@ -167,7 +167,7 @@ if __name__ == '__main__':
                         help="Port used to communicate tensors")
     parser.add_argument("--intra_server_broadcast", action='store_true',
                         help="Broadcast within a server")
-    parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
+    parser.add_argument('--Lacc', action='store_true', default=False, help='live accuracy over network')
     parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
     parser.add_argument('--ctraining', action='store_true', default=True, help='Continues sending images for training')
 
