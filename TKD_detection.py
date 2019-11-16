@@ -247,16 +247,17 @@ def Retraining(frame, feature,info):
 
         send_tensor_helper(info.dist, tensor, 1 - info.opt.rank, 0, 0,
                            1, info.opt.intra_server_broadcast)
-        for parm in info.TKD.parameters():
-            temp_w=parm.cpu()
-            receive_tensor_helper(info.dist, temp_w, 1 - info.opt.rank, 0, 0,
+        if not info.opt.ctraining:
+            for parm in info.TKD.parameters():
+                temp_w=parm.cpu()
+                receive_tensor_helper(info.dist, temp_w, 1 - info.opt.rank, 0, 0,
+                                      1, info.opt.intra_server_broadcast)
+                parm[:] = temp_w.cuda()
+
+            loss = torch.zeros(([1])).cpu()
+
+            receive_tensor_helper(info.dist, loss, 1 - info.opt.rank, 0, 0,
                                   1, info.opt.intra_server_broadcast)
-            parm[:] = temp_w.cuda()
-
-        loss = torch.zeros(([1])).cpu()
-
-        receive_tensor_helper(info.dist, loss, 1 - info.opt.rank, 0, 0,
-                              1, info.opt.intra_server_broadcast)
 
     else:
         T_out = info.oracle(frame)
@@ -290,14 +291,18 @@ def Retraining(frame, feature,info):
             info.threshold-=1
 
     t2=time.time()
-    file = open('time' + '.txt', 'a')
+    if info.network and info.opt.ctraining:
+        file = open('sendimage_time' + '.txt', 'a')
+    else:
+        info.loss = loss
+        print("TKD Loss", loss.data.cpu())
+        file = open('time' + '.txt', 'a')
     if info.network:
         file.write('\n' +'Network'+','+ str(t2-t1))
     else:
         file.write('\n' + 'Local' + ',' + str(t2 - t1))
     file.close()
-    info.loss=loss
-    print("TKD Loss",loss.data.cpu())
+
 
 
 

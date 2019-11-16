@@ -169,7 +169,7 @@ if __name__ == '__main__':
                         help="Broadcast within a server")
     parser.add_argument('--Lacc', action='store_true', default=True, help='live accuracy over network')
     parser.add_argument('--Net_training', action='store_true', default=True, help='live accuracy over network')
-    parser.add_argument('--dynamic', action='store_true', default=True, help='Dynamic selection training over network or local')
+    parser.add_argument('--ctraining', action='store_true', default=True, help='Continues sending images for training')
 
     opt = parser.parse_args()
 
